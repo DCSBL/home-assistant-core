@@ -86,7 +86,7 @@ async def test_coordinator_calculates_update_interval(aioclient_mock, hass):
 
 
 async def test_coordinator_fetches_data(aioclient_mock, hass):
-    """Test coordinator calculates correct update interval."""
+    """Test coordinator fetches data."""
 
     # P1 meter and (very advanced kWh meter)
     meter = get_mock_device(product_type=MODEL_P1)
@@ -166,7 +166,7 @@ async def test_coordinator_fetches_data(aioclient_mock, hass):
 
 
 async def test_coordinator_failed_to_update(aioclient_mock, hass):
-    """Test coordinator calculates correct update interval."""
+    """Test coordinator handles failed update correctly."""
 
     # Update failed by internal error
     meter = get_mock_device(product_type=MODEL_P1)
