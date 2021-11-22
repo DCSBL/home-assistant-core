@@ -1,21 +1,15 @@
 """Test the update coordinator for HomeWizard Energy."""
 
-from datetime import timedelta
-from unittest.mock import AsyncMock
-
-from pytest import raises
+from unittest.mock import patch
 
 from homeassistant.components.homewizard_energy.const import (
     ATTR_ACTIVE_POWER_L1_W,
     ATTR_ACTIVE_POWER_L2_W,
     ATTR_ACTIVE_POWER_L3_W,
     ATTR_ACTIVE_POWER_W,
-    ATTR_BRIGHTNESS,
     ATTR_GAS_TIMESTAMP,
     ATTR_METER_MODEL,
-    ATTR_POWER_ON,
     ATTR_SMR_VERSION,
-    ATTR_SWITCHLOCK,
     ATTR_TOTAL_ENERGY_EXPORT_T1_KWH,
     ATTR_TOTAL_ENERGY_EXPORT_T2_KWH,
     ATTR_TOTAL_ENERGY_IMPORT_T1_KWH,
@@ -23,159 +17,644 @@ from homeassistant.components.homewizard_energy.const import (
     ATTR_TOTAL_GAS_M3,
     ATTR_WIFI_SSID,
     ATTR_WIFI_STRENGTH,
-    CONF_DATA,
-    CONF_MODEL,
-    CONF_SW_VERSION,
-    MODEL_KWH_1,
-    MODEL_KWH_3,
-    MODEL_P1,
-    MODEL_SOCKET,
 )
-from homeassistant.components.homewizard_energy.coordinator import (
-    HWEnergyDeviceUpdateCoordinator as Coordinator,
+from homeassistant.components.sensor import (
+    ATTR_STATE_CLASS,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
 )
-from homeassistant.const import CONF_API_VERSION, CONF_ID, CONF_NAME, CONF_STATE
-from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.const import (
+    ATTR_DEVICE_CLASS,
+    ATTR_FRIENDLY_NAME,
+    ATTR_ICON,
+    ATTR_UNIT_OF_MEASUREMENT,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_TIMESTAMP,
+    ENERGY_KILO_WATT_HOUR,
+    PERCENTAGE,
+    POWER_WATT,
+    VOLUME_CUBIC_METERS,
+)
+from homeassistant.helpers import entity_registry as er
 
 from .generator import get_mock_device
 
 
-async def test_coordinator_calculates_update_interval(aioclient_mock, hass):
-    """Test coordinator calculates correct update interval."""
+async def test_sensor_entity_smr_version(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads smr version."""
 
-    # P1 meter
-    meter = get_mock_device(product_type=MODEL_P1)
-    meter.data.smr_version = 50
-
-    coordinator = Coordinator(hass, meter)
-    assert coordinator.update_interval == timedelta(seconds=1)
-
-    # KWH 1 phase
-    meter = get_mock_device(product_type=MODEL_KWH_1)
-
-    coordinator = Coordinator(hass, meter)
-    assert coordinator.update_interval == timedelta(seconds=5)
-
-    # KWH 3 phase
-    meter = get_mock_device(product_type=MODEL_KWH_3)
-
-    coordinator = Coordinator(hass, meter)
-    assert coordinator.update_interval == timedelta(seconds=5)
-
-    # Socket
-    meter = get_mock_device(product_type=MODEL_SOCKET)
-
-    coordinator = Coordinator(hass, meter)
-    assert coordinator.update_interval == timedelta(seconds=5)
-
-    # Missing config data
-    # P1 meter
-    meter = get_mock_device(product_type=MODEL_P1)
-    meter.data = None
-
-    coordinator = Coordinator(hass, meter)
-    assert coordinator.update_interval == timedelta(seconds=5)
-
-    # Not an 5.0 meter config data
-    # P1 meter
-    meter = get_mock_device(product_type=MODEL_P1)
-    meter.data.smr_version = 40
-
-    coordinator = Coordinator(hass, meter)
-    assert coordinator.update_interval == timedelta(seconds=5)
-
-
-async def test_coordinator_fetches_data(aioclient_mock, hass):
-    """Test coordinator calculates correct update interval."""
-
-    # P1 meter and (very advanced kWh meter)
-    meter = get_mock_device(product_type=MODEL_P1)
-    meter.data.smr_version = 50
-    meter.data.available_datapoints = [
-        ATTR_ACTIVE_POWER_L1_W,
-        ATTR_ACTIVE_POWER_L2_W,
-        ATTR_ACTIVE_POWER_L3_W,
-        ATTR_ACTIVE_POWER_W,
-        ATTR_GAS_TIMESTAMP,
-        ATTR_METER_MODEL,
+    api = get_mock_device()
+    api.data.available_datapoints = [
         ATTR_SMR_VERSION,
-        ATTR_TOTAL_ENERGY_EXPORT_T1_KWH,
-        ATTR_TOTAL_ENERGY_EXPORT_T2_KWH,
-        ATTR_TOTAL_ENERGY_IMPORT_T1_KWH,
-        ATTR_TOTAL_ENERGY_IMPORT_T2_KWH,
-        ATTR_TOTAL_GAS_M3,
+    ]
+    api.data.smr_version = 50
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_smr_version")
+    entry = entity_registry.async_get("sensor.custom_name_smr_version")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_smr_version"
+    assert not entry.disabled
+    assert state.state == "50"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name SMR Version"
+    assert ATTR_STATE_CLASS not in state.attributes
+    assert ATTR_UNIT_OF_MEASUREMENT not in state.attributes
+    assert ATTR_DEVICE_CLASS not in state.attributes
+    assert state.attributes.get(ATTR_ICON) == "mdi:wifi"
+
+
+async def test_sensor_entity_meter_model(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads meter model."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_METER_MODEL,
+    ]
+    api.data.meter_model = "Model X"
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_model")
+    entry = entity_registry.async_get("sensor.custom_name_model")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_meter_model"
+    assert not entry.disabled
+    assert state.state == "Model X"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Model"
+    assert ATTR_STATE_CLASS not in state.attributes
+    assert ATTR_UNIT_OF_MEASUREMENT not in state.attributes
+    assert ATTR_DEVICE_CLASS not in state.attributes
+    assert state.attributes.get(ATTR_ICON) == "mdi:counter"
+
+
+async def test_sensor_entity_wifi_ssid(hass, mock_config_entry_data, mock_config_entry):
+    """Test entity loads wifi ssid."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
         ATTR_WIFI_SSID,
+    ]
+    api.data.wifi_ssid = "My Wifi"
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_wifi_ssid")
+    entry = entity_registry.async_get("sensor.custom_name_wifi_ssid")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_wifi_ssid"
+    assert not entry.disabled
+    assert state.state == "My Wifi"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Wifi SSID"
+    assert ATTR_STATE_CLASS not in state.attributes
+    assert ATTR_UNIT_OF_MEASUREMENT not in state.attributes
+    assert ATTR_DEVICE_CLASS not in state.attributes
+    assert state.attributes.get(ATTR_ICON) == "mdi:wifi"
+
+
+async def test_sensor_entity_wifi_strength(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads wifi strength."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
         ATTR_WIFI_STRENGTH,
     ]
+    api.data.wifi_strength = 42
 
-    coordinator = Coordinator(hass, meter)
-    data = await coordinator._async_update_data()
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
 
-    assert data[CONF_NAME] == meter.device.product_name
-    assert data[CONF_MODEL] == meter.device.product_type
-    assert data[CONF_ID] == meter.device.serial
-    assert data[CONF_SW_VERSION] == meter.device.firmware_version
-    assert data[CONF_API_VERSION] == meter.device.api_version
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
 
-    for datapoint in meter.data.available_datapoints:
-        assert datapoint in data[CONF_DATA]
+    entity_registry = er.async_get(hass)
 
-    assert data[CONF_STATE] is None
+    state = hass.states.get("sensor.custom_name_wifi_strength")
+    entry = entity_registry.async_get("sensor.custom_name_wifi_strength")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_wifi_strength"
+    assert not entry.disabled
+    assert state.state == "42"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Wifi Strength"
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_MEASUREMENT
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == PERCENTAGE
+    assert ATTR_DEVICE_CLASS not in state.attributes
+    assert state.attributes.get(ATTR_ICON) == "mdi:wifi"
 
-    # Socket
-    meter = get_mock_device(product_type=MODEL_P1)
-    meter.data.smr_version = 50
-    meter.data.available_datapoints = [
+
+async def test_sensor_entity_total_power_import_t1_kwh(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads total power import t1."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_TOTAL_ENERGY_IMPORT_T1_KWH,
+    ]
+    api.data.total_power_import_t1_kwh = 1234.123
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_total_power_import_t1")
+    entry = entity_registry.async_get("sensor.custom_name_total_power_import_t1")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_total_power_import_t1_kwh"
+    assert not entry.disabled
+    assert state.state == "1234.123"
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Total Power Import T1"
+    )
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_TOTAL_INCREASING
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == ENERGY_KILO_WATT_HOUR
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_ENERGY
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_total_power_import_t2_kwh(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads total power import t2."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_TOTAL_ENERGY_IMPORT_T2_KWH,
+    ]
+    api.data.total_power_import_t2_kwh = 1234.123
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_total_power_import_t2")
+    entry = entity_registry.async_get("sensor.custom_name_total_power_import_t2")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_total_power_import_t2_kwh"
+    assert not entry.disabled
+    assert state.state == "1234.123"
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Total Power Import T2"
+    )
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_TOTAL_INCREASING
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == ENERGY_KILO_WATT_HOUR
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_ENERGY
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_total_power_export_t1_kwh(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads total power export t1."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_TOTAL_ENERGY_EXPORT_T1_KWH,
+    ]
+    api.data.total_power_export_t1_kwh = 1234.123
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_total_power_export_t1")
+    entry = entity_registry.async_get("sensor.custom_name_total_power_export_t1")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_total_power_export_t1_kwh"
+    assert not entry.disabled
+    assert state.state == "1234.123"
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Total Power Export T1"
+    )
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_TOTAL_INCREASING
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == ENERGY_KILO_WATT_HOUR
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_ENERGY
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_total_power_export_t2_kwh(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads total power export t2."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_TOTAL_ENERGY_EXPORT_T2_KWH,
+    ]
+    api.data.total_power_export_t2_kwh = 1234.123
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_total_power_export_t2")
+    entry = entity_registry.async_get("sensor.custom_name_total_power_export_t2")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_total_power_export_t2_kwh"
+    assert not entry.disabled
+    assert state.state == "1234.123"
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Total Power Export T2"
+    )
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_TOTAL_INCREASING
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == ENERGY_KILO_WATT_HOUR
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_ENERGY
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_active_power(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads active power."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_ACTIVE_POWER_W,
+    ]
+    api.data.active_power_w = 123.123
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_active_power")
+    entry = entity_registry.async_get("sensor.custom_name_active_power")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_active_power_w"
+    assert not entry.disabled
+    assert state.state == "123.123"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Active Power"
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_MEASUREMENT
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == POWER_WATT
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_POWER
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_active_power_l1(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads active power l1."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
         ATTR_ACTIVE_POWER_L1_W,
+    ]
+    api.data.active_power_l1_w = 123.123
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_active_power_l1")
+    entry = entity_registry.async_get("sensor.custom_name_active_power_l1")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_active_power_l1_w"
+    assert not entry.disabled
+    assert state.state == "123.123"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Active Power L1"
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_MEASUREMENT
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == POWER_WATT
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_POWER
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_active_power_l2(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads active power l2."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_ACTIVE_POWER_L2_W,
+    ]
+    api.data.active_power_l2_w = 456.456
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_active_power_l2")
+    entry = entity_registry.async_get("sensor.custom_name_active_power_l2")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_active_power_l2_w"
+    assert not entry.disabled
+    assert state.state == "456.456"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Active Power L2"
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_MEASUREMENT
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == POWER_WATT
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_POWER
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_active_power_l3(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads active power l3."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_ACTIVE_POWER_L3_W,
+    ]
+    api.data.active_power_l3_w = 789.789
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_active_power_l3")
+    entry = entity_registry.async_get("sensor.custom_name_active_power_l3")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_active_power_l3_w"
+    assert not entry.disabled
+    assert state.state == "789.789"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Active Power L3"
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_MEASUREMENT
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == POWER_WATT
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_POWER
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_total_gas(hass, mock_config_entry_data, mock_config_entry):
+    """Test entity loads total gas."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_TOTAL_GAS_M3,
+    ]
+    api.data.total_gas_m3 = 50
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_total_gas")
+    entry = entity_registry.async_get("sensor.custom_name_total_gas")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_total_gas_m3"
+    assert not entry.disabled
+    assert state.state == "50"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Total Gas"
+    assert state.attributes.get(ATTR_STATE_CLASS) == STATE_CLASS_TOTAL_INCREASING
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == VOLUME_CUBIC_METERS
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_GAS
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_gas_timestamp(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test entity loads gas timestamp."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
+        ATTR_GAS_TIMESTAMP,
+    ]
+    api.data.gas_timestamp = 50
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    state = hass.states.get("sensor.custom_name_gas_timestamp")
+    entry = entity_registry.async_get("sensor.custom_name_gas_timestamp")
+    assert entry
+    assert state
+    assert entry.unique_id == "aabbccddeeff_gas_timestamp"
+    assert not entry.disabled
+    assert state.state == "50"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Custom Name Gas Timestamp"
+    assert ATTR_STATE_CLASS not in state.attributes
+    assert ATTR_UNIT_OF_MEASUREMENT not in state.attributes
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == DEVICE_CLASS_TIMESTAMP
+    assert ATTR_ICON not in state.attributes
+
+
+async def test_sensor_entity_disabled_when_null(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test sensor disables data with null by default."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
         ATTR_ACTIVE_POWER_L2_W,
         ATTR_ACTIVE_POWER_L3_W,
-        ATTR_ACTIVE_POWER_W,
+        ATTR_TOTAL_GAS_M3,
         ATTR_GAS_TIMESTAMP,
-        ATTR_METER_MODEL,
-        ATTR_SMR_VERSION,
+    ]
+    api.data.active_power_l2_w = None
+    api.data.active_power_l3_w = None
+    api.data.total_gas_m3 = None
+    api.data.gas_timestamp = None
+
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
+
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.custom_name_active_power_l2")
+    assert entry
+    assert entry.disabled
+
+    entry = entity_registry.async_get("sensor.custom_name_active_power_l3")
+    assert entry
+    assert entry.disabled
+
+    entry = entity_registry.async_get("sensor.custom_name_total_gas")
+    assert entry
+    assert entry.disabled
+
+    entry = entity_registry.async_get("sensor.custom_name_gas_timestamp")
+    assert entry
+    assert entry.disabled
+
+
+async def test_sensor_entity_export_disabled_when_unused(
+    hass, mock_config_entry_data, mock_config_entry
+):
+    """Test sensor disables export if value is 0."""
+
+    api = get_mock_device()
+    api.data.available_datapoints = [
         ATTR_TOTAL_ENERGY_EXPORT_T1_KWH,
         ATTR_TOTAL_ENERGY_EXPORT_T2_KWH,
-        ATTR_TOTAL_ENERGY_IMPORT_T1_KWH,
-        ATTR_TOTAL_ENERGY_IMPORT_T2_KWH,
-        ATTR_TOTAL_GAS_M3,
-        ATTR_WIFI_SSID,
-        ATTR_WIFI_STRENGTH,
     ]
+    api.data.total_power_export_t1_kwh = 0
+    api.data.total_power_export_t2_kwh = 0
 
-    meter.state = AsyncMock()
-    meter.state.power_on = False
-    meter.state.switch_lock = False
-    meter.state.brightness = 255
+    with patch(
+        "aiohwenergy.HomeWizardEnergy",
+        return_value=api,
+    ):
+        entry = mock_config_entry
+        entry.data = mock_config_entry_data
+        entry.add_to_hass(hass)
 
-    coordinator = Coordinator(hass, meter)
-    data = await coordinator._async_update_data()
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
 
-    assert data[CONF_NAME] == meter.device.product_name
-    assert data[CONF_MODEL] == meter.device.product_type
-    assert data[CONF_ID] == meter.device.serial
-    assert data[CONF_SW_VERSION] == meter.device.firmware_version
-    assert data[CONF_API_VERSION] == meter.device.api_version
+    entity_registry = er.async_get(hass)
 
-    for datapoint in meter.data.available_datapoints:
-        assert datapoint in data[CONF_DATA]
+    entry = entity_registry.async_get("sensor.custom_name_total_power_export_t1")
+    assert entry
+    assert entry.disabled
 
-    assert data[CONF_STATE] is not None
-    assert data[CONF_STATE][ATTR_POWER_ON] == meter.state.power_on
-    assert data[CONF_STATE][ATTR_SWITCHLOCK] == meter.state.switch_lock
-    assert data[CONF_STATE][ATTR_BRIGHTNESS] == meter.state.brightness
-
-
-async def test_coordinator_failed_to_update(aioclient_mock, hass):
-    """Test coordinator calculates correct update interval."""
-
-    # Update failed by internal error
-    meter = get_mock_device(product_type=MODEL_P1)
-
-    async def _failed_update() -> bool:
-        return False
-
-    meter.update = _failed_update
-
-    with raises(UpdateFailed):
-        coordinator = Coordinator(hass, meter)
-        await coordinator._async_update_data()
+    entry = entity_registry.async_get("sensor.custom_name_total_power_export_t2")
+    assert entry
+    assert entry.disabled
