@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 from homewizard_energy.errors import DisabledError, RequestError
 from homewizard_energy.models import Data
 
+from homeassistant.components.homewizard import DOMAIN
 from homeassistant.components.sensor import (
     ATTR_OPTIONS,
     ATTR_STATE_CLASS,
@@ -16,6 +17,7 @@ from homeassistant.const import (
     ATTR_FRIENDLY_NAME,
     ATTR_ICON,
     ATTR_UNIT_OF_MEASUREMENT,
+    Platform,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
@@ -29,7 +31,7 @@ import homeassistant.util.dt as dt_util
 
 from .generator import get_mock_device
 
-from tests.common import async_fire_time_changed
+from tests.common import MockConfigEntry, async_fire_time_changed
 
 
 async def test_sensor_entity_smr_version(
@@ -586,84 +588,6 @@ async def test_sensor_entity_active_power_l3(
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfPower.WATT
     assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.POWER
     assert ATTR_ICON not in state.attributes
-
-
-async def test_sensor_entity_total_gas(
-    hass: HomeAssistant, mock_config_entry_data, mock_config_entry
-) -> None:
-    """Test entity loads total gas."""
-
-    api = get_mock_device()
-    api.data = AsyncMock(return_value=Data.from_dict({"total_gas_m3": 50}))
-
-    with patch(
-        "homeassistant.components.homewizard.coordinator.HomeWizardEnergy",
-        return_value=api,
-    ):
-        entry = mock_config_entry
-        entry.data = mock_config_entry_data
-        entry.add_to_hass(hass)
-
-        await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-    entity_registry = er.async_get(hass)
-
-    state = hass.states.get("sensor.product_name_aabbccddeeff_total_gas")
-    entry = entity_registry.async_get("sensor.product_name_aabbccddeeff_total_gas")
-    assert entry
-    assert state
-    assert entry.unique_id == "aabbccddeeff_total_gas_m3"
-    assert not entry.disabled
-    assert state.state == "50"
-    assert (
-        state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Product Name (aabbccddeeff) Total gas"
-    )
-    assert state.attributes.get(ATTR_STATE_CLASS) == SensorStateClass.TOTAL_INCREASING
-    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
-    assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.GAS
-    assert ATTR_ICON not in state.attributes
-
-
-async def test_sensor_entity_unique_gas_meter_id(
-    hass: HomeAssistant, mock_config_entry_data, mock_config_entry
-) -> None:
-    """Test entity loads unique gas meter id."""
-
-    api = get_mock_device()
-    api.data = AsyncMock(return_value=Data.from_dict({"gas_unique_id": "4E47475955"}))
-
-    with patch(
-        "homeassistant.components.homewizard.coordinator.HomeWizardEnergy",
-        return_value=api,
-    ):
-        entry = mock_config_entry
-        entry.data = mock_config_entry_data
-        entry.add_to_hass(hass)
-
-        await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-    entity_registry = er.async_get(hass)
-
-    state = hass.states.get("sensor.product_name_aabbccddeeff_gas_meter_identifier")
-    entry = entity_registry.async_get(
-        "sensor.product_name_aabbccddeeff_gas_meter_identifier"
-    )
-    assert entry
-    assert state
-    assert entry.unique_id == "aabbccddeeff_gas_unique_id"
-    assert not entry.disabled
-    assert state.state == "NGGYU"
-    assert (
-        state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Product Name (aabbccddeeff) Gas meter identifier"
-    )
-    assert ATTR_STATE_CLASS not in state.attributes
-    assert ATTR_UNIT_OF_MEASUREMENT not in state.attributes
-    assert ATTR_DEVICE_CLASS not in state.attributes
-    assert state.attributes.get(ATTR_ICON) == "mdi:alphabetical-variant"
 
 
 async def test_sensor_entity_active_voltage_l1(
@@ -1759,3 +1683,156 @@ async def test_api_disabled(
             ).state
             == "unavailable"
         )
+
+
+async def test_external_gas_meter_loads(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+):
+    """Test creation of external gas sensor."""
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.gas_meter_g001_total_gas")
+    assert entry
+    assert entry.unique_id == "homewizard_G001"
+    assert not entry.disabled
+
+    state = hass.states.get("sensor.gas_meter_g001_total_gas")
+    assert state
+    assert state.state == "111.111"
+
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Gas meter (G001) Total gas"
+
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.GAS
+    assert state.attributes.get(ATTR_STATE_CLASS) == SensorStateClass.TOTAL_INCREASING
+
+
+async def test_external_water_meter_loads(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+):
+    """Test creation of external water sensor."""
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.water_meter_w001_total_water")
+    assert entry
+    assert entry.unique_id == "homewizard_W001"
+    assert not entry.disabled
+
+    state = hass.states.get("sensor.water_meter_w001_total_water")
+    assert state
+    assert state.state == "222.222"
+
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Water meter (W001) Total water"
+
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.WATER
+    assert state.attributes.get(ATTR_STATE_CLASS) == SensorStateClass.TOTAL_INCREASING
+
+
+async def test_external_warm_water_meter_loads(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+):
+    """Test creation of external warm water sensor."""
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.warm_water_meter_ww001_total_water")
+    assert entry
+    assert entry.unique_id == "homewizard_WW001"
+    assert not entry.disabled
+
+    state = hass.states.get("sensor.warm_water_meter_ww001_total_water")
+    assert state
+    assert state.state == "333.333"
+
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME)
+        == "Warm water meter (WW001) Total water"
+    )
+
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.WATER
+    assert state.attributes.get(ATTR_STATE_CLASS) == SensorStateClass.TOTAL_INCREASING
+
+
+async def test_external_heat_meter_loads(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+):
+    """Test creation of external heat sensor."""
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.heat_meter_h001_total_energy")
+    assert entry
+    assert entry.unique_id == "homewizard_H001"
+    assert not entry.disabled
+
+    state = hass.states.get("sensor.heat_meter_h001_total_energy")
+    assert state
+    assert state.state == "444.444"
+
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Heat meter (H001) Total energy"
+
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfEnergy.GIGA_JOULE
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.ENERGY
+    assert state.attributes.get(ATTR_STATE_CLASS) == SensorStateClass.TOTAL_INCREASING
+
+
+async def test_external_inlet_heat_meter_loads(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+):
+    """Test creation of external inlet heat sensor."""
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.inlet_heat_meter_ih001_total_energy")
+    assert entry
+    assert entry.unique_id == "homewizard_IH001"
+    assert not entry.disabled
+
+    state = hass.states.get("sensor.inlet_heat_meter_ih001_total_energy")
+    assert state
+    assert state.state == "555.555"
+
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME)
+        == "Inlet heat meter (IH001) Total energy"
+    )
+
+    assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
+    assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.ENERGY
+    assert state.attributes.get(ATTR_STATE_CLASS) == SensorStateClass.TOTAL_INCREASING
+
+
+async def test_external_sensor_migrates_gas_value(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+):
+    """Test original gas sensor migrates unique id."""
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.homewizard_aabbccddeeff_total_gas_m3")
+    assert not entry
+
+    entity_registry.async_get_or_create(
+        Platform.SENSOR,
+        DOMAIN,
+        f"{init_integration.unique_id}_total_gas_m3",
+    )
+
+    await hass.config_entries.async_reload(init_integration.entry_id)
+    await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+
+    entry = entity_registry.async_get("sensor.homewizard_aabbccddeeff_total_gas_m3")
+    assert entry
+    assert entry.unique_id == "aabbccddeeff_total_gas_m3"
