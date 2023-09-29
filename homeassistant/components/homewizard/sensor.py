@@ -492,6 +492,35 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
+class HomeWizardSensorEntity(HomeWizardEntity, SensorEntity):
+    """Representation of a HomeWizard Sensor."""
+
+    entity_description: HomeWizardSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: HWEnergyDeviceUpdateCoordinator,
+        entry: ConfigEntry,
+        description: HomeWizardSensorEntityDescription,
+    ) -> None:
+        """Initialize Sensor Domain."""
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+        if not description.enabled_fn(self.coordinator.data.data):
+            self._attr_entity_registry_enabled_default = False
+
+    @property
+    def native_value(self) -> float | int | str | None:
+        """Return the sensor value."""
+        return self.entity_description.value_fn(self.coordinator.data.data)
+
+    @property
+    def available(self) -> bool:
+        """Return availability of meter."""
+        return super().available and self.native_value is not None
+
+
 class HomeWizardExternalSensorEntity(HomeWizardEntity, SensorEntity):
     """Representation of externally connected HomeWizard Sensor."""
 
@@ -564,32 +593,3 @@ class HomeWizardExternalSensorEntity(HomeWizardEntity, SensorEntity):
             return None
 
         return self._suggested_device_class
-
-
-class HomeWizardSensorEntity(HomeWizardEntity, SensorEntity):
-    """Representation of a HomeWizard Sensor."""
-
-    entity_description: HomeWizardSensorEntityDescription
-
-    def __init__(
-        self,
-        coordinator: HWEnergyDeviceUpdateCoordinator,
-        entry: ConfigEntry,
-        description: HomeWizardSensorEntityDescription,
-    ) -> None:
-        """Initialize Sensor Domain."""
-        super().__init__(coordinator)
-        self.entity_description = description
-        self._attr_unique_id = f"{entry.unique_id}_{description.key}"
-        if not description.enabled_fn(self.coordinator.data.data):
-            self._attr_entity_registry_enabled_default = False
-
-    @property
-    def native_value(self) -> float | int | str | None:
-        """Return the sensor value."""
-        return self.entity_description.value_fn(self.coordinator.data.data)
-
-    @property
-    def available(self) -> bool:
-        """Return availability of meter."""
-        return super().available and self.native_value is not None
