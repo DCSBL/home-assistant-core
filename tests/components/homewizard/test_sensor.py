@@ -1717,16 +1717,19 @@ async def test_external_water_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.water_meter_w001_total_water")
+    entry = entity_registry.async_get("sensor.water_meter_w001_total_water_usage")
     assert entry
     assert entry.unique_id == "homewizard_W001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.water_meter_w001_total_water")
+    state = hass.states.get("sensor.water_meter_w001_total_water_usage")
     assert state
     assert state.state == "222.222"
 
-    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Water meter (W001) Total water"
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME)
+        == "Water meter (W001) Total water usage"
+    )
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
     assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.WATER
@@ -1741,18 +1744,18 @@ async def test_external_warm_water_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.warm_water_meter_ww001_total_water")
+    entry = entity_registry.async_get("sensor.warm_water_meter_ww001_total_water_usage")
     assert entry
     assert entry.unique_id == "homewizard_WW001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.warm_water_meter_ww001_total_water")
+    state = hass.states.get("sensor.warm_water_meter_ww001_total_water_usage")
     assert state
     assert state.state == "333.333"
 
     assert (
         state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Warm water meter (WW001) Total water"
+        == "Warm water meter (WW001) Total water usage"
     )
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
@@ -1768,16 +1771,19 @@ async def test_external_heat_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.heat_meter_h001_total_energy")
+    entry = entity_registry.async_get("sensor.heat_meter_h001_total_heat_energy")
     assert entry
     assert entry.unique_id == "homewizard_H001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.heat_meter_h001_total_energy")
+    state = hass.states.get("sensor.heat_meter_h001_total_heat_energy")
     assert state
     assert state.state == "444.444"
 
-    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Heat meter (H001) Total energy"
+    assert (
+        state.attributes.get(ATTR_FRIENDLY_NAME)
+        == "Heat meter (H001) Total heat energy"
+    )
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfEnergy.GIGA_JOULE
     assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.ENERGY
@@ -1792,22 +1798,22 @@ async def test_external_inlet_heat_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.inlet_heat_meter_ih001_total_energy")
+    entry = entity_registry.async_get("sensor.inlet_heat_meter_ih001_total_heat_energy")
     assert entry
     assert entry.unique_id == "homewizard_IH001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.inlet_heat_meter_ih001_total_energy")
+    state = hass.states.get("sensor.inlet_heat_meter_ih001_total_heat_energy")
     assert state
     assert state.state == "555.555"
 
     assert (
         state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Inlet heat meter (IH001) Total energy"
+        == "Inlet heat meter (IH001) Total heat energy"
     )
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
-    assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.ENERGY
+    assert state.attributes.get(ATTR_DEVICE_CLASS) is None
     assert state.attributes.get(ATTR_STATE_CLASS) == SensorStateClass.TOTAL_INCREASING
 
 
@@ -1819,13 +1825,14 @@ async def test_external_sensor_migrates_gas_value(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.homewizard_aabbccddeeff_total_gas_m3")
+    entry = entity_registry.async_get("sensor.homewizard_aabbccddeeff_total_gas")
     assert not entry
 
     entity_registry.async_get_or_create(
         Platform.SENSOR,
         DOMAIN,
-        f"{init_integration.unique_id}_total_gas_m3",
+        f"{init_integration.unique_id}_total_gas",
+        translation_key="total_gas_m3",
     )
 
     await hass.config_entries.async_reload(init_integration.entry_id)
@@ -1833,6 +1840,6 @@ async def test_external_sensor_migrates_gas_value(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.homewizard_aabbccddeeff_total_gas_m3")
+    entry = entity_registry.async_get("sensor.homewizard_aabbccddeeff_total_gas")
     assert entry
-    assert entry.unique_id == "aabbccddeeff_total_gas_m3"
+    assert entry.unique_id == "aabbccddeeff_total_gas"
