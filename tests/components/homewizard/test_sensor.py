@@ -1693,16 +1693,16 @@ async def test_external_gas_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.gas_meter_g001_total_gas")
+    entry = entity_registry.async_get("sensor.gas_meter_total_gas")
     assert entry
     assert entry.unique_id == "homewizard_G001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.gas_meter_g001_total_gas")
+    state = hass.states.get("sensor.gas_meter_total_gas")
     assert state
     assert state.state == "111.111"
 
-    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Gas meter (G001) Total gas"
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Gas meter Total gas"
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
     assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.GAS
@@ -1717,19 +1717,16 @@ async def test_external_water_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.water_meter_w001_total_water_usage")
+    entry = entity_registry.async_get("sensor.water_meter_total_water_usage")
     assert entry
     assert entry.unique_id == "homewizard_W001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.water_meter_w001_total_water_usage")
+    state = hass.states.get("sensor.water_meter_total_water_usage")
     assert state
     assert state.state == "222.222"
 
-    assert (
-        state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Water meter (W001) Total water usage"
-    )
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Water meter Total water usage"
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
     assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.WATER
@@ -1744,18 +1741,17 @@ async def test_external_warm_water_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.warm_water_meter_ww001_total_water_usage")
+    entry = entity_registry.async_get("sensor.warm_water_meter_total_water_usage")
     assert entry
     assert entry.unique_id == "homewizard_WW001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.warm_water_meter_ww001_total_water_usage")
+    state = hass.states.get("sensor.warm_water_meter_total_water_usage")
     assert state
     assert state.state == "333.333"
 
     assert (
-        state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Warm water meter (WW001) Total water usage"
+        state.attributes.get(ATTR_FRIENDLY_NAME) == "Warm water meter Total water usage"
     )
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
@@ -1771,19 +1767,16 @@ async def test_external_heat_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.heat_meter_h001_total_heat_energy")
+    entry = entity_registry.async_get("sensor.heat_meter_total_heat_energy")
     assert entry
     assert entry.unique_id == "homewizard_H001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.heat_meter_h001_total_heat_energy")
+    state = hass.states.get("sensor.heat_meter_total_heat_energy")
     assert state
     assert state.state == "444.444"
 
-    assert (
-        state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Heat meter (H001) Total heat energy"
-    )
+    assert state.attributes.get(ATTR_FRIENDLY_NAME) == "Heat meter Total heat energy"
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfEnergy.GIGA_JOULE
     assert state.attributes.get(ATTR_DEVICE_CLASS) == SensorDeviceClass.ENERGY
@@ -1798,18 +1791,17 @@ async def test_external_inlet_heat_meter_loads(
 
     entity_registry = er.async_get(hass)
 
-    entry = entity_registry.async_get("sensor.inlet_heat_meter_ih001_total_heat_energy")
+    entry = entity_registry.async_get("sensor.inlet_heat_meter_total_heat_energy")
     assert entry
     assert entry.unique_id == "homewizard_IH001"
     assert not entry.disabled
 
-    state = hass.states.get("sensor.inlet_heat_meter_ih001_total_heat_energy")
+    state = hass.states.get("sensor.inlet_heat_meter_total_heat_energy")
     assert state
     assert state.state == "555.555"
 
     assert (
-        state.attributes.get(ATTR_FRIENDLY_NAME)
-        == "Inlet heat meter (IH001) Total heat energy"
+        state.attributes.get(ATTR_FRIENDLY_NAME) == "Inlet heat meter Total heat energy"
     )
 
     assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == UnitOfVolume.CUBIC_METERS
