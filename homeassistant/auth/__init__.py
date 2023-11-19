@@ -174,6 +174,22 @@ class AuthManager:
         """Return a list of available auth modules."""
         return list(self._mfa_modules.values())
 
+    async def async_get_passkeys(self, user: models.User) -> dict[str, str]:
+        """Return a list of passkeys."""
+
+        passkeys = []
+
+        for module in self._mfa_modules.values():
+            if module.id == "webauthn":
+                rv = await module.get_passkeys()
+
+                ## append passkey to list when user id matches
+                for key in rv:
+                    if rv[key]["user_id"] == user.id:
+                        passkeys.append({"id": key, "name": "fakename"})
+
+        return passkeys
+
     def get_auth_provider(
         self, provider_type: str, provider_id: str | None
     ) -> AuthProvider | None:

@@ -486,6 +486,7 @@ async def websocket_current_user(
     """Return the current user."""
     user = connection.user
     enabled_modules = await hass.auth.async_get_enabled_mfa(user)
+    passkeys = await hass.auth.async_get_passkeys(user)
 
     connection.send_message(
         websocket_api.result_message(
@@ -510,6 +511,7 @@ async def websocket_current_user(
                     }
                     for module in hass.auth.auth_mfa_modules
                 ],
+                "passkeys": passkeys,
             },
         )
     )

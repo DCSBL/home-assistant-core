@@ -107,6 +107,13 @@ class WebauthnAuthModule(MultiFactorAuthModule):
 
             self._passkeys = data.get(STORAGE_PASSKEYS, {})
 
+    async def get_passkeys(self) -> dict[str, str]:
+        """Return passkeys."""
+        if self._passkeys is None:
+            await self._async_load()
+
+        return self._passkeys
+
     async def _async_save(self) -> None:
         """Save data."""
         await self._user_store.async_save({STORAGE_PASSKEYS: self._passkeys or {}})
