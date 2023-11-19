@@ -2720,6 +2720,9 @@ watchdog==2.3.1
 # homeassistant.components.waterfurnace
 waterfurnace==1.1.0
 
+# homeassistant.auth.passkey_modules.webauthn
+webauthn==1.11.1
+
 # homeassistant.components.cisco_webex_teams
 webexteamssdk==1.1.1;python_version<'3.12'
 

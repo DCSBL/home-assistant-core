@@ -5,6 +5,7 @@ import asyncio
 from collections import OrderedDict
 from collections.abc import Mapping
 from datetime import timedelta
+import logging
 import time
 from typing import Any, cast
 
@@ -17,13 +18,17 @@ from homeassistant.data_entry_flow import FlowResult
 from . import auth_store, jwt_wrapper, models
 from .const import ACCESS_TOKEN_EXPIRATION, GROUP_ID_ADMIN
 from .mfa_modules import MultiFactorAuthModule, auth_mfa_module_from_config
+from .passkey_modules import PasskeyAuthModule, auth_passkey_module_from_config
 from .providers import AuthProvider, LoginFlow, auth_provider_from_config
 
 EVENT_USER_ADDED = "user_added"
 EVENT_USER_UPDATED = "user_updated"
 EVENT_USER_REMOVED = "user_removed"
 
+_LOGGER = logging.getLogger(__name__)
+
 _MfaModuleDict = dict[str, MultiFactorAuthModule]
+_PasskeyModuleDict = dict[str, PasskeyAuthModule]
 _ProviderKey = tuple[str, str | None]
 _ProviderDict = dict[_ProviderKey, AuthProvider]
 
@@ -63,17 +68,28 @@ async def auth_manager_from_config(
         provider_hash[key] = provider
 
     if module_configs:
-        modules = await asyncio.gather(
+        mfa_modules = await asyncio.gather(
             *(auth_mfa_module_from_config(hass, config) for config in module_configs)
         )
-    else:
-        modules = []
-    # So returned auth modules are in same order as config
-    module_hash: _MfaModuleDict = OrderedDict()
-    for module in modules:
-        module_hash[module.id] = module
+        passkey_modules = [
+            await auth_passkey_module_from_config(hass, {"type": "webauthn"})
+        ]
 
-    manager = AuthManager(hass, store, provider_hash, module_hash)
+    else:
+        mfa_modules = []
+
+    # So returned auth modules are in same order as config
+    mfa_module_hash: _MfaModuleDict = OrderedDict()
+    for module in mfa_modules:
+        mfa_module_hash[module.id] = module
+
+    passkey_module_hash: _PasskeyModuleDict = OrderedDict()
+    for module in passkey_modules:
+        passkey_module_hash[module.id] = module
+
+    manager = AuthManager(
+        hass, store, provider_hash, mfa_module_hash, passkey_module_hash
+    )
     return manager
 
 
@@ -150,12 +166,14 @@ class AuthManager:
         store: auth_store.AuthStore,
         providers: _ProviderDict,
         mfa_modules: _MfaModuleDict,
+        passkey_modules: _PasskeyModuleDict,
     ) -> None:
         """Initialize the auth manager."""
         self.hass = hass
         self._store = store
         self._providers = providers
         self._mfa_modules = mfa_modules
+        self._passkey_modules = passkey_modules
         self.login_flow = AuthManagerFlowManager(hass, self)
         self._revoke_callbacks: dict[str, list[CALLBACK_TYPE]] = {}
 
@@ -168,6 +186,11 @@ class AuthManager:
     def auth_mfa_modules(self) -> list[MultiFactorAuthModule]:
         """Return a list of available auth modules."""
         return list(self._mfa_modules.values())
+
+    @property
+    def auth_passkey_modules(self) -> list[PasskeyAuthModule]:
+        """Return a list of available auth modules."""
+        return list(self._passkey_modules.values())
 
     def get_auth_provider(
         self, provider_type: str, provider_id: str | None
@@ -186,6 +209,11 @@ class AuthManager:
     def get_auth_mfa_module(self, module_id: str) -> MultiFactorAuthModule | None:
         """Return a multi-factor auth module, None if not found."""
         return self._mfa_modules.get(module_id)
+
+    def get_auth_passkey_module(self, module_id: str) -> PasskeyAuthModule | None:
+        """Return a passkey auth module, None if not found."""
+        _LOGGER.info(self._passkey_modules)
+        return self._passkey_modules.get(module_id)
 
     async def async_get_users(self) -> list[models.User]:
         """Retrieve all users."""

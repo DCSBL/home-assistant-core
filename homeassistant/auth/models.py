@@ -129,6 +129,35 @@ class Credentials:
     is_new: bool = attr.ib(default=True)
 
 
+@attr.s(slots=True)
+class Passkey:
+    """{
+        "credentialId": "0wOEfoJpRMBS6_ZP7g_o9sQXtQs",
+        "credentialPublicKey": "pQECAyYgASFYIGLxzIyvc1E_peYbdYnRiWCZv16QKNwSzK5o2Q9NMnRXIlggMXGUmvQcb37_t6kQGgepYtUZeD76quYJZLO8OpCeB-E",
+        "signCount": 0,
+        "aaguid": "00000000-0000-0000-0000-000000000000",
+        "fmt": "none",
+        "credentialType": "public-key",
+        "userVerified": True,
+        "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YViYSZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2NdAAAAAAAAAAAAAAAAAAAAAAAAAAAAFNMDhH6CaUTAUuv2T-4P6PbEF7ULpQECAyYgASFYIGLxzIyvc1E_peYbdYnRiWCZv16QKNwSzK5o2Q9NMnRXIlggMXGUmvQcb37_t6kQGgepYtUZeD76quYJZLO8OpCeB-E",
+        "credentialDeviceType": "multi_device",
+        "credentialBackedUp": true,
+    }
+    """
+
+    """Passkey for user on an auth provider."""
+    credential_id: str = attr.ib()
+    credential_public_key: str = attr.ib()
+    sign_count: int = attr.ib()
+    aaguid: str = attr.ib()
+    fmt: str = attr.ib()
+    credential_type: str = attr.ib()
+    user_verified: bool = attr.ib()
+    attestation_object: str = attr.ib()
+    credential_device_type: str = attr.ib()
+    credential_backed_up: bool = attr.ib()
+
+
 class UserMeta(NamedTuple):
     """User metadata."""
 

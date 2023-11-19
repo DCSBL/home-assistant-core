@@ -158,7 +158,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import bind_hass
 from homeassistant.util import dt as dt_util
 
-from . import indieauth, login_flow, mfa_setup_flow
+from . import indieauth, login_flow, mfa_setup_flow, passkey_setup_flow
 
 DOMAIN = "auth"
 
@@ -196,6 +196,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     await login_flow.async_setup(hass, store_result)
     await mfa_setup_flow.async_setup(hass)
+    await passkey_setup_flow.async_setup(hass)
 
     return True
 
