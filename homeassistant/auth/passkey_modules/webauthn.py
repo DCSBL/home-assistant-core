@@ -28,11 +28,9 @@ CONFIG_SCHEMA = PASSKEY_AUTH_MODULE_SCHEMA.extend({}, extra=vol.PREVENT_EXTRA)
 
 STORAGE_VERSION = 1
 STORAGE_KEY = "auth_module.webauthn"
-STORAGE_USERS = "users"
+STORAGE_PASSKEYS = "passkeys"
 STORAGE_USER_ID = "user_id"
-STORAGE_OTA_SECRET = "ota_secret"
-
-INPUT_FIELD_CODE = "code"
+STORAGE_CREDENTIAL_PUBLIC_KEY = "credential_public_key"
 
 
 def _generate_options(
@@ -84,7 +82,7 @@ class WebauthnAuthModule(PasskeyAuthModule):
     def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:
         """Initialize the user data store."""
         super().__init__(hass, config)
-        self._users: dict[str, str] | None = None
+        self._passkeys: dict[str, str] | None = None
         self._user_store = Store[dict[str, dict[str, str]]](
             hass, STORAGE_VERSION, STORAGE_KEY, private=True, atomic_writes=True
         )
@@ -101,17 +99,17 @@ class WebauthnAuthModule(PasskeyAuthModule):
     async def _async_load(self) -> None:
         """Load stored data."""
         async with self._init_lock:
-            if self._users is not None:
+            if self._passkeys is not None:
                 return
 
             if (data := await self._user_store.async_load()) is None:
-                data = cast(dict[str, dict[str, str]], {STORAGE_USERS: {}})
+                data = cast(dict[str, dict[str, str]], {STORAGE_PASSKEYS: {}})
 
-            self._users = data.get(STORAGE_USERS, {})
+            self._passkeys = data.get(STORAGE_PASSKEYS, {})
 
     async def _async_save(self) -> None:
         """Save data."""
-        await self._user_store.async_save({STORAGE_USERS: self._users or {}})
+        await self._user_store.async_save({STORAGE_PASSKEYS: self._passkeys or {}})
 
     async def async_setup_flow(self, user_id: str) -> SetupFlow:
         """Return a data entry flow handler for setup module.
@@ -124,28 +122,34 @@ class WebauthnAuthModule(PasskeyAuthModule):
 
     async def async_setup_user(self, user_id: str, setup_data: Any) -> str:
         """Set up auth module for user."""
-        if self._users is None:
+        if self._passkeys is None:
             await self._async_load()
 
-        self._users[user_id] = setup_data.get("passkey")
+        # If the validation process succeeded, the server would then store the publicKeyBytes and credentialId in a database, associated with the user.
+        passkey = setup_data.get("passkey")
+
+        self._passkeys[passkey["credentialId"]] = {
+            STORAGE_USER_ID: user_id,
+            STORAGE_CREDENTIAL_PUBLIC_KEY: passkey["credentialPublicKey"],
+        }
 
         await self._async_save()
-        return self._users[user_id]
+        return self._passkeys[passkey["credentialId"]]
 
     async def async_depose_user(self, user_id: str) -> None:
         """Depose auth module for user."""
-        if self._users is None:
+        if self._passkeys is None:
             await self._async_load()
 
-        if self._users.pop(user_id, None):  # type: ignore[union-attr]
+        if self._passkeys.pop(user_id, None):  # type: ignore[union-attr]
             await self._async_save()
 
     async def async_is_user_setup(self, user_id: str) -> bool:
         """Return whether user is setup."""
-        if self._users is None:
+        if self._passkeys is None:
             await self._async_load()
 
-        return user_id in self._users  # type: ignore[operator]
+        return user_id in self._passkeys  # type: ignore[operator]
 
 
 class WebauthnSetupFlow(SetupFlow):
