@@ -14,9 +14,9 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.storage import Store
 
 from . import (
-    PASSKEY_AUTH_MODULE_SCHEMA,
-    PASSKEY_AUTH_MODULES,
-    PasskeyAuthModule,
+    MULTI_FACTOR_AUTH_MODULE_SCHEMA,
+    MULTI_FACTOR_AUTH_MODULES,
+    MultiFactorAuthModule,
     SetupFlow,
 )
 
@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 REQUIREMENTS = ["webauthn==1.11.1"]
 
-CONFIG_SCHEMA = PASSKEY_AUTH_MODULE_SCHEMA.extend({}, extra=vol.PREVENT_EXTRA)
+CONFIG_SCHEMA = MULTI_FACTOR_AUTH_MODULE_SCHEMA.extend({}, extra=vol.PREVENT_EXTRA)
 
 STORAGE_VERSION = 1
 STORAGE_KEY = "auth_module.webauthn"
@@ -72,8 +72,8 @@ def _generate_verification(
     return json.loads(json_options)
 
 
-@PASSKEY_AUTH_MODULES.register("webauthn")
-class WebauthnAuthModule(PasskeyAuthModule):
+@MULTI_FACTOR_AUTH_MODULES.register("webauthn")
+class WebauthnAuthModule(MultiFactorAuthModule):
     """Auth module validate time-based one time password."""
 
     DEFAULT_TITLE = "Time-based One Time Password"

@@ -16,12 +16,12 @@ SCHEMA_WS_PASSKEY_REGISTER = vol.All(
     websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
         {
             vol.Required("type"): WS_TYPE_PASSKEY_REGISTER,
-            vol.Exclusive("passkey_module_id", "module_or_flow_id"): str,
+            vol.Exclusive("mfa_module_id", "module_or_flow_id"): str,
             vol.Exclusive("flow_id", "module_or_flow_id"): str,
             vol.Optional("credential", "module_or_flow_id"): object,
         }
     ),
-    cv.has_at_least_one_key("passkey_module_id", "flow_id"),
+    cv.has_at_least_one_key("mfa_module_id", "flow_id"),
 )
 
 DATA_SETUP_FLOW_MGR = "auth_passkey_setup_flow_manager"
@@ -40,12 +40,12 @@ class PasskeyFlowManager(data_entry_flow.FlowManager):
         data: dict[str, Any],
     ) -> data_entry_flow.FlowHandler:
         """Create a setup flow. handler is a passkey module."""
-        passkey_module = self.hass.auth.get_auth_passkey_module(handler_key)
-        if passkey_module is None:
-            raise ValueError(f"Passkey module {handler_key} is not found")
+        mfa_module = self.hass.auth.get_auth_mfa_module(handler_key)
+        if mfa_module is None:
+            raise ValueError(f"MFA module {handler_key} is not found")
 
         user_id = data.pop("user_id")
-        return await passkey_module.async_setup_flow(user_id)
+        return await mfa_module.async_setup_flow(user_id)
 
     async def async_finish_flow(
         self, flow: data_entry_flow.FlowHandler, result: data_entry_flow.FlowResult
@@ -87,19 +87,19 @@ def websocket_passkey_register_request(
             # )
             return
 
-        passkey_module_id = msg["passkey_module_id"]
-        if hass.auth.get_auth_passkey_module(passkey_module_id) is None:
+        mfa_module_id = msg["mfa_module_id"]
+        if hass.auth.get_auth_mfa_module(mfa_module_id) is None:
             connection.send_message(
                 websocket_api.error_message(
                     msg["id"],
                     "no_module",
-                    f"Passkey module {passkey_module_id} is not found",
+                    f"Passkey module {mfa_module_id} is not found",
                 )
             )
             return
 
         result = await flow_manager.async_init(
-            passkey_module_id, data={"user_id": connection.user.id}
+            mfa_module_id, data={"user_id": connection.user.id}
         )
 
         _LOGGER.info(result)
