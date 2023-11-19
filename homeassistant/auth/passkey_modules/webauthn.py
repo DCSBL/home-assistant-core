@@ -113,12 +113,12 @@ class WebauthnAuthModule(PasskeyAuthModule):
         """Save data."""
         await self._user_store.async_save({STORAGE_USERS: self._users or {}})
 
-    async def async_setup_flow(self, user: str) -> SetupFlow:
+    async def async_setup_flow(self, user_id: str) -> SetupFlow:
         """Return a data entry flow handler for setup module.
 
         Mfa module should extend SetupFlow
         """
-        user = await self.hass.auth.async_get_user(user)
+        user = await self.hass.auth.async_get_user(user_id)
         assert user is not None
         return WebauthnSetupFlow(self, self.input_schema, user)
 
