@@ -66,19 +66,19 @@ async def auth_manager_from_config(
         provider_hash[key] = provider
 
     if module_configs:
-        mfa_modules = await asyncio.gather(
+        modules = await asyncio.gather(
             *(auth_mfa_module_from_config(hass, config) for config in module_configs)
         )
 
     else:
-        mfa_modules = []
+        modules = []
 
     # So returned auth modules are in same order as config
-    mfa_module_hash: _MfaModuleDict = OrderedDict()
-    for module in mfa_modules:
-        mfa_module_hash[module.id] = module
+    module_hash: _MfaModuleDict = OrderedDict()
+    for module in modules:
+        module_hash[module.id] = module
 
-    manager = AuthManager(hass, store, provider_hash, mfa_module_hash)
+    manager = AuthManager(hass, store, provider_hash, module_hash)
     return manager
 
 
