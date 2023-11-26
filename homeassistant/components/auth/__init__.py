@@ -158,7 +158,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import bind_hass
 from homeassistant.util import dt as dt_util
 
-from . import indieauth, login_flow, mfa_setup_flow, passkey_setup_flow
+from . import indieauth, login_flow, mfa_setup_flow
 
 DOMAIN = "auth"
 
@@ -196,7 +196,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     await login_flow.async_setup(hass, store_result)
     await mfa_setup_flow.async_setup(hass)
-    await passkey_setup_flow.async_setup(hass)
 
     return True
 
@@ -486,7 +485,6 @@ async def websocket_current_user(
     """Return the current user."""
     user = connection.user
     enabled_modules = await hass.auth.async_get_enabled_mfa(user)
-    passkeys = await hass.auth.async_get_passkeys(user)
 
     connection.send_message(
         websocket_api.result_message(
@@ -511,7 +509,7 @@ async def websocket_current_user(
                     }
                     for module in hass.auth.auth_mfa_modules
                 ],
-                "passkeys": passkeys,
+                "passkeys": [],
             },
         )
     )

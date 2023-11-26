@@ -737,7 +737,6 @@ async def async_process_ha_core_config(hass: HomeAssistant, config: dict) -> Non
             CONF_AUTH_MFA_MODULES,
             [
                 {"type": "totp", "id": "totp", "name": "Authenticator app"},
-                {"type": "webauthn", "id": "webauthn", "name": "Passkey"},
             ],
         )
 

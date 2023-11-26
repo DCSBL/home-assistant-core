@@ -22,6 +22,7 @@ SECTIONS = (
     "area_registry",
     "auth",
     "auth_provider_homeassistant",
+    "auth_provider_webauthn",
     "automation",
     "config_entries",
     "core",

@@ -1,0 +1,272 @@
+diff --git a/src/auth/ha-auth-flow.ts b/src/auth/ha-auth-flow.ts
+index 9be7202c7..be57f645b 100644
+--- a/src/auth/ha-auth-flow.ts
++++ b/src/auth/ha-auth-flow.ts
+@@ -212,11 +212,80 @@ export class HaAuthFlow extends LitElement {
+               `
+             : ""}
+         `;
++      case "external":
++        return html` <mwc-button raised @click=${this._generatePasskey(step.description_placeholders)}
++          >Log in using Passkey</mwc-button
++        >`;
+       default:
+         return nothing;
+     }
+   }
+ 
++  private _base64url = {
++    encode: function (buffer) {
++      const base64 = window.btoa(
++        String.fromCharCode(...new Uint8Array(buffer))
++      );
++      return base64.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
++    },
++    decode: function (base64url) {
++      const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
++      const binStr = window.atob(base64);
++      const bin = new Uint8Array(binStr.length);
++      for (let i = 0; i < binStr.length; i++) {
++        bin[i] = binStr.charCodeAt(i);
++      }
++      return bin.buffer;
++    },
++  };
++
++  private async _generatePasskey(options) {
++    console.log(options);
++
++    // Base64URL decode the challenge
++    options.challenge = this._base64url.decode(options.challenge);
++
++    // `allowCredentials` empty array invokes an account selector by discoverable credentials.
++    options.allowCredentials = [];
++
++    // Invoke WebAuthn get
++    const cred = await navigator.credentials.get({
++      publicKey: options,
++      // Request a conditional UI
++      // mediation: conditional ? 'conditional' : 'optional'
++    });
++
++    console.log(cred)
++
++    const credential = {};
++    credential.id = cred.id;
++    credential.type = cred.type;
++    // Base64URL encode `rawId`
++    credential.rawId = this._base64url.encode(cred.rawId);
++
++    // Base64URL encode some values
++    const clientDataJSON = this._base64url.encode(cred.response.clientDataJSON);
++    const authenticatorData = this._base64url.encode(cred.response.authenticatorData);
++    const signature = this._base64url.encode(cred.response.signature);
++    const userHandle = this._base64url.encode(cred.response.userHandle);
++
++    credential.response = {
++      clientDataJSON,
++      authenticatorData,
++      signature,
++      userHandle,
++    };
++
++    const response = await fetch("", {
++      method: "POST",
++      credentials: "same-origin",
++      body: JSON.stringify({
++        credenital: credential.response,
++      }),
++    });
++
++  }
++
+   private _storeTokenChanged(e: CustomEvent<HTMLInputElement>) {
+     this._storeToken = (e.currentTarget as HTMLInputElement).checked;
+   }
+diff --git a/src/panels/profile/ha-panel-profile.ts b/src/panels/profile/ha-panel-profile.ts
+index a38fd171c..4b89210db 100644
+--- a/src/panels/profile/ha-panel-profile.ts
++++ b/src/panels/profile/ha-panel-profile.ts
+@@ -12,6 +12,7 @@ import {
+   getOptimisticFrontendUserDataCollection,
+ } from "../../data/frontend";
+ import { RefreshToken } from "../../data/refresh_token";
++import { Passkey } from "../../data/passkey";
+ import { showConfirmationDialog } from "../../dialogs/generic/show-dialog-box";
+ import { haStyle } from "../../resources/styles";
+ import { HomeAssistant } from "../../types";
+@@ -42,6 +43,7 @@ class HaPanelProfile extends LitElement {
+   @property({ type: Boolean }) public narrow!: boolean;
+ 
+   @state() private _refreshTokens?: RefreshToken[];
++  @state() private _passkeys?: Passkey[];
+ 
+   @state() private _coreUserData?: CoreFrontendUserData | null;
+ 
+@@ -91,8 +93,13 @@ class HaPanelProfile extends LitElement {
+               : ""
+           }
+ 
++          <mwc-button class="warning" @click=${this._handleLogOut}>
++              ${this.hass.localize("ui.panel.profile.logout")}
++          </mwc-button>
++
+           <ha-setup-passkey-card
+             .hass=${this.hass}
++            .passkeys=${this.hass.user!.passkeys}
+           </ha-setup-passkey-card>
+ 
+           <ha-mfa-modules-card
+diff --git a/src/panels/profile/ha-setup-passkey-card.ts b/src/panels/profile/ha-setup-passkey-card.ts
+index d1a4c4f10..9424d6bd5 100644
+--- a/src/panels/profile/ha-setup-passkey-card.ts
++++ b/src/panels/profile/ha-setup-passkey-card.ts
+@@ -11,8 +11,9 @@ import { customElement, property, state } from "lit/decorators";
+ import "../../components/ha-card";
+ import "../../components/ha-circular-progress";
+ import "../../components/ha-textfield";
++import { Passkey } from "../../data/passkey";
+ import { haStyle } from "../../resources/styles";
+-import type { HomeAssistant } from "../../types";
++import { HomeAssistant, MFAModule } from "../../types";
+ import "../../components/ha-alert";
+ import {
+   showAlertDialog,
+@@ -25,19 +26,7 @@ import { changePassword, deleteAllRefreshTokens } from "../../data/auth";
+ class HaSetupPasskeyCard extends LitElement {
+   @property({ attribute: false }) public hass!: HomeAssistant;
+ 
+-  @state() private _loading = false;
+-
+-  @state() private _statusMsg?: string;
+-
+-  @state() private _errorMsg?: string;
+-
+-  @state() private _currentPassword = "";
+-
+-  @state() private _password = "";
+-
+-  @state() private _passwordConfirm = "";
+-
+-  // @property({ attribute: false }) public refreshTokens?: RefreshToken[];
++  @state() public passkeys?: Passkey[];
+ 
+   protected render(): TemplateResult {
+     return html`
+@@ -45,21 +34,15 @@ class HaSetupPasskeyCard extends LitElement {
+         .header=${this.hass.localize("ui.panel.profile.setup_passkey.header")}
+       >
+         <div class="card-content">
+-          ${
+-            this._errorMsg
+-              ? html`<ha-alert alert-type="error">${this._errorMsg}</ha-alert>`
+-              : ""
+-          }
+-          ${
+-            this._statusMsg
+-              ? html`<ha-alert alert-type="success"
+-                  >${this._statusMsg}</ha-alert
+-                >`
+-              : ""
+-          }
+-
++        ${this.passkeys!.map(
++          (passkey) =>
++            html`<ha-settings-row two-line>
++              <span slot="heading">${passkey.name}</span>
++              <span slot="description">${passkey.id}</span>
++            </ha-settings-row>`
++        )}
+           <mwc-button
+-            @click=${this._changePassword}
++            @click=${this._generatePasskey}
+           >
+           ${this.hass.localize("ui.panel.profile.setup_passkey.add")}
+           </mwc-button>
+@@ -67,28 +50,6 @@ class HaSetupPasskeyCard extends LitElement {
+     `;
+   }
+ 
+-  private _currentPasswordChanged(ev) {
+-    this._currentPassword = ev.target.value;
+-  }
+-
+-  private _newPasswordChanged(ev) {
+-    this._password = ev.target.value;
+-  }
+-
+-  private _newPasswordConfirmChanged(ev) {
+-    this._passwordConfirm = ev.target.value;
+-  }
+-
+-  protected firstUpdated(changedProps: PropertyValues) {
+-    super.firstUpdated(changedProps);
+-    this.addEventListener("keypress", (ev) => {
+-      this._statusMsg = undefined;
+-      if (ev.key === "Enter") {
+-        this._changePassword();
+-      }
+-    });
+-  }
+-
+   private _base64url = {
+     encode: function (buffer) {
+       const base64 = window.btoa(
+@@ -107,7 +68,7 @@ class HaSetupPasskeyCard extends LitElement {
+     },
+   };
+ 
+-  private async _createPasskey(flow_id: string, options: any) {
++  private async _createPasskey(options: any) {
+     console.log(options);
+ 
+     // Base64URL decode some values
+@@ -160,8 +121,7 @@ class HaSetupPasskeyCard extends LitElement {
+ 
+     this.hass
+       .callWS({
+-        type: "auth/passkey_register",
+-        flow_id: flow_id,
++        type: "config/auth_provider/passkey/register_validate",
+         credential: credential,
+       })
+       .then(() => {
+@@ -169,15 +129,14 @@ class HaSetupPasskeyCard extends LitElement {
+       });
+   }
+ 
+-  private async _changePassword() {
++  private async _generatePasskey() {
+     this.hass
+       .callWS({
+-        type: "auth/passkey_register",
+-        passkey_module_id: "webauthn",
++        type: "config/auth_provider/passkey/register",
+       })
+       .then((data) => {
+         console.log("passkey setup! ", data);
+-        this._createPasskey(data["flow_id"], data["options"]);
++        this._createPasskey(data["options"]);
+       });
+   }
+ 
+diff --git a/src/types.ts b/src/types.ts
+index 8d0d37ee8..bf4b6a8c9 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -12,6 +12,7 @@ import { LocalizeFunc } from "./common/translations/localize";
+ import { AreaRegistryEntry } from "./data/area_registry";
+ import { DeviceRegistryEntry } from "./data/device_registry";
+ import { EntityRegistryDisplayEntry } from "./data/entity_registry";
++import { Passkey } from "./data/passkey";
+ import { CoreFrontendUserData } from "./data/frontend";
+ import { FrontendLocaleData, getHassTranslations } from "./data/translation";
+ import { Themes } from "./data/ws-themes";
+@@ -99,6 +100,7 @@ export interface CurrentUser {
+   name: string;
+   credentials: Credential[];
+   mfa_modules: MFAModule[];
++  passkeys: Passkey[];
+ }
+ 
+ // Currently selected theme and its settings. These are the values stored in local storage.
