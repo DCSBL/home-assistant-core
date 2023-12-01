@@ -1,7 +1,7 @@
 """Constants for the automation integration."""
 import logging
 
-DOMAIN = "labels"
+DOMAIN = "label"
 
 CONF_COLOR = "color"
 CONF_HIDE_ENTITY = "hide_entity"

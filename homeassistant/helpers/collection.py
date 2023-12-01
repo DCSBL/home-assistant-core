@@ -437,9 +437,8 @@ def sync_entity_lifecycle(
             if change_set.item_id in entities:
                 entities.pop(change_set.item_id)
 
-        entities[change_set.item_id] = collection.create_entity(
-            entity_class, change_set.item
-        )
+        ent = collection.create_entity(entity_class, change_set.item)
+        entities[change_set.item_id] = ent
         entities[change_set.item_id].async_on_remove(entity_removed)
         return entities[change_set.item_id]
 

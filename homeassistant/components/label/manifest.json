@@ -1,10 +1,10 @@
 {
-  "domain": "labels",
-  "name": "Labels",
+  "domain": "label",
+  "name": "Label",
   "after_dependencies": ["webhook"],
   "codeowners": ["@home-assistant/core"],
   "dependencies": [],
-  "documentation": "https://www.home-assistant.io/integrations/labels",
+  "documentation": "https://www.home-assistant.io/integrations/label",
   "integration_type": "system",
   "quality_scale": "internal"
 }

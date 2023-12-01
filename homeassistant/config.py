@@ -82,7 +82,6 @@ CONFIG_DIR_NAME = ".homeassistant"
 DATA_CUSTOMIZE = "hass_customize"
 
 AUTOMATION_CONFIG_PATH = "automations.yaml"
-LABELS_CONFIG_PATH = "labels.yaml"
 SCENE_CONFIG_PATH = "scenes.yaml"
 SCRIPT_CONFIG_PATH = "scripts.yaml"
 
@@ -100,7 +99,6 @@ frontend:
   themes: !include_dir_merge_named themes
 
 automation: !include {AUTOMATION_CONFIG_PATH}
-labels: !include {LABELS_CONFIG_PATH}
 script: !include {SCRIPT_CONFIG_PATH}
 scene: !include {SCENE_CONFIG_PATH}
 """
@@ -391,7 +389,6 @@ def _write_default_config(config_dir: str) -> bool:
     secret_path = os.path.join(config_dir, SECRET_YAML)
     version_path = os.path.join(config_dir, VERSION_FILE)
     automation_yaml_path = os.path.join(config_dir, AUTOMATION_CONFIG_PATH)
-    labels_yaml_path = os.path.join(config_dir, LABELS_CONFIG_PATH)
     script_yaml_path = os.path.join(config_dir, SCRIPT_CONFIG_PATH)
     scene_yaml_path = os.path.join(config_dir, SCENE_CONFIG_PATH)
 
@@ -411,10 +408,6 @@ def _write_default_config(config_dir: str) -> bool:
         if not os.path.isfile(automation_yaml_path):
             with open(automation_yaml_path, "w", encoding="utf8") as automation_file:
                 automation_file.write("[]")
-
-        if not os.path.isfile(labels_yaml_path):
-            with open(labels_yaml_path, "w", encoding="utf8"):
-                pass
 
         if not os.path.isfile(script_yaml_path):
             with open(script_yaml_path, "w", encoding="utf8"):
