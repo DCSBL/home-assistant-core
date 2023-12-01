@@ -7,20 +7,38 @@ import logging
 import voluptuous as vol
 
 from homeassistant.const import (
+    ATTR_EDITABLE,
+    ATTR_ID,
+    ATTR_NAME,
     CONF_DESCRIPTION,
     CONF_ICON,
     CONF_ID,
     CONF_NAME,
     SERVICE_RELOAD,
+    ATTR_ENTITY_ID,
 )
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.loader import bind_hass
+from homeassistant.core import HomeAssistant, ServiceCall, callback, Event, split_entity_id
 from homeassistant.helpers import collection, config_validation as cv, service
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers import (
+    collection,
+    config_validation as cv,
+    entity_registry as er,
+    service,
+)
 from homeassistant.helpers.typing import ConfigType
 
 from .const import CONF_COLOR, DOMAIN, LOGGER
+
+from homeassistant.components.automation import (
+    DOMAIN as AUTOMATION_DOMAIN,
+)
+
+ATTR_AUTOMATIONS = "automations"
+CONF_AUTOMATIONS = "automations"
 
 STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1
@@ -32,6 +50,10 @@ LABEL_SCHEMA = vol.Schema(
         vol.Optional(CONF_DESCRIPTION): cv.string,
         vol.Optional(CONF_COLOR): cv.string,
         vol.Optional(CONF_ICON): cv.string,
+
+        vol.Optional(CONF_AUTOMATIONS, default=[]): vol.All(
+            cv.ensure_list, cv.entities_domain(CONF_AUTOMATIONS)
+        ),
     },
 )
 
@@ -40,6 +62,9 @@ CREATE_FIELDS = {
     vol.Optional(CONF_DESCRIPTION): cv.string,
     vol.Optional(CONF_COLOR): cv.string,
     vol.Optional(CONF_ICON): cv.string,
+    vol.Optional(CONF_AUTOMATIONS, default=list): vol.All(
+        cv.ensure_list, cv.entities_domain(AUTOMATION_DOMAIN)
+    ),
 }
 
 
@@ -48,8 +73,10 @@ UPDATE_FIELDS = {
     vol.Optional(CONF_DESCRIPTION): cv.string,
     vol.Optional(CONF_COLOR): cv.string,
     vol.Optional(CONF_ICON): cv.string,
+    vol.Optional(CONF_AUTOMATIONS, default=list): vol.All(
+        cv.ensure_list, cv.entities_domain(AUTOMATION_DOMAIN)
+    ),
 }
-
 
 class LabelStore(Store):
     """Label storage."""
@@ -74,6 +101,37 @@ class LabelStorageCollection(collection.DictStorageCollection):
     async def async_load(self) -> None:
         """Load the Storage collection."""
         await super().async_load()
+        self.hass.bus.async_listen(
+            er.EVENT_ENTITY_REGISTRY_UPDATED,
+            self._entity_registry_updated,
+            event_filter=self._entity_registry_filter,
+        )
+
+    @callback
+    def _entity_registry_filter(self, event: Event) -> bool:
+        """Filter entity registry events."""
+        return (
+            event.data["action"] == "remove"
+            and split_entity_id(event.data[ATTR_ENTITY_ID])[0] == AUTOMATION_DOMAIN
+        )
+
+    async def _entity_registry_updated(self, event: Event) -> None:
+        """Handle entity registry updated."""
+        entity_id = event.data[ATTR_ENTITY_ID]
+        for label in list(self.data.values()):
+            if entity_id not in label[CONF_AUTOMATIONS]:
+                continue
+
+            await self.async_update_item(
+                label[CONF_ID],
+                {
+                    CONF_AUTOMATIONS: [
+                        devt
+                        for devt in label[CONF_AUTOMATIONS]
+                        if devt != entity_id
+                    ]
+                },
+            )
 
     async def _process_create_data(self, data: dict) -> dict:
         """Validate the config is valid."""
@@ -195,20 +253,31 @@ class Label(collection.CollectionEntity, RestoreEntity):
         return self._config[CONF_NAME]
 
     @property
-    def icon(self) -> str:
-        return self._config[CONF_ICON]
-
-    @property
     def unique_id(self):
         return self._config[CONF_ID]
 
     @property
-    def color(self) -> str:
-        return self._config[CONF_COLOR]
+    def icon(self) -> str | None:
+        return self._config.get(CONF_ICON)
 
     @property
-    def description(self) -> str:
-        return self._config[CONF_DESCRIPTION]
+    def color(self) -> str | None:
+        return self._config.get(CONF_COLOR)
+
+    @property
+    def description(self) -> str | None:
+        return self._config.get(CONF_DESCRIPTION)
+
+    @property
+    def automations(self):
+        LOGGER.error(self._config)
+        return self._config[CONF_AUTOMATIONS]
+
+    @property
+    def extra_state_attributes(self):
+        data = {}
+        data[ATTR_AUTOMATIONS] = self.automations
+        return data
 
 
 @dataclass(slots=True)
