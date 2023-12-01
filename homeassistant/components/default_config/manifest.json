@@ -22,6 +22,7 @@
     "input_number",
     "input_select",
     "input_text",
+    "labels",
     "logbook",
     "logger",
     "map",
