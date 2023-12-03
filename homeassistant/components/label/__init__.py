@@ -3,39 +3,39 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components import websocket_api
+from homeassistant.components.automation import DOMAIN as AUTOMATION_DOMAIN
 from homeassistant.const import (
-    ATTR_EDITABLE,
+    ATTR_ENTITY_ID,
     ATTR_ID,
-    ATTR_NAME,
     CONF_DESCRIPTION,
     CONF_ICON,
     CONF_ID,
     CONF_NAME,
-    SERVICE_RELOAD,
-    ATTR_ENTITY_ID,
+    CONF_TYPE,
 )
-from homeassistant.loader import bind_hass
-from homeassistant.core import HomeAssistant, ServiceCall, callback, Event, split_entity_id
-from homeassistant.helpers import collection, config_validation as cv, service
-from homeassistant.helpers.entity_component import EntityComponent
-from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.storage import Store
+from homeassistant.core import (
+    Event,
+    HomeAssistant,
+    ServiceCall,
+    callback,
+    split_entity_id,
+)
 from homeassistant.helpers import (
     collection,
     config_validation as cv,
     entity_registry as er,
-    service,
 )
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.entity_component import EntityComponent
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.storage import Store
+from homeassistant.helpers.typing import ConfigType, StateType
 
 from .const import CONF_COLOR, DOMAIN, LOGGER
-
-from homeassistant.components.automation import (
-    DOMAIN as AUTOMATION_DOMAIN,
-)
 
 ATTR_AUTOMATIONS = "automations"
 CONF_AUTOMATIONS = "automations"
@@ -50,7 +50,6 @@ LABEL_SCHEMA = vol.Schema(
         vol.Optional(CONF_DESCRIPTION): cv.string,
         vol.Optional(CONF_COLOR): cv.string,
         vol.Optional(CONF_ICON): cv.string,
-
         vol.Optional(CONF_AUTOMATIONS, default=[]): vol.All(
             cv.ensure_list, cv.entities_domain(CONF_AUTOMATIONS)
         ),
@@ -77,6 +76,7 @@ UPDATE_FIELDS = {
         cv.ensure_list, cv.entities_domain(AUTOMATION_DOMAIN)
     ),
 }
+
 
 class LabelStore(Store):
     """Label storage."""
@@ -126,9 +126,7 @@ class LabelStorageCollection(collection.DictStorageCollection):
                 label[CONF_ID],
                 {
                     CONF_AUTOMATIONS: [
-                        devt
-                        for devt in label[CONF_AUTOMATIONS]
-                        if devt != entity_id
+                        devt for devt in label[CONF_AUTOMATIONS] if devt != entity_id
                     ]
                 },
             )
@@ -154,8 +152,6 @@ class LabelStorageCollection(collection.DictStorageCollection):
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up all labels."""
 
-    LOGGER.error("async_setup")
-
     entity_component = EntityComponent[Label](LOGGER, DOMAIN, hass)
     id_manager = collection.IDManager()
     yaml_collection = collection.YamlCollection(
@@ -179,11 +175,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await filter_yaml_data(hass, config.get(DOMAIN, []))
     )
     await storage_collection.async_load()
+
+    hass.data[DOMAIN] = (yaml_collection, storage_collection, entity_component)
+
     collection.DictStorageCollectionWebsocket(
         storage_collection, DOMAIN, DOMAIN, CREATE_FIELDS, UPDATE_FIELDS
     ).async_setup(hass, create_list=False)
 
-    hass.data[DOMAIN] = (yaml_collection, storage_collection, entity_component)
+    websocket_api.async_register_command(hass, ws_list_label)
 
     async def async_reload_yaml(call: ServiceCall) -> None:
         """Reload YAML."""
@@ -193,10 +192,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await yaml_collection.async_load(
             await filter_yaml_data(hass, conf.get(DOMAIN, []))
         )
-
-    service.async_register_admin_service(
-        hass, DOMAIN, SERVICE_RELOAD, async_reload_yaml
-    )
 
     return True
 
@@ -223,9 +218,6 @@ class Label(collection.CollectionEntity, RestoreEntity):
         """Initialize an automation entity."""
         self._config = config
 
-        LOGGER.error("Label.__init__")
-        LOGGER.error(config)
-
     @classmethod
     def from_storage(cls, config: ConfigType) -> Label:
         """Return entity instance initialized from storage."""
@@ -242,39 +234,44 @@ class Label(collection.CollectionEntity, RestoreEntity):
         """Handle when the config is updated."""
         self._config = config
 
-        if self._unsub_track_device is not None:
-            self._unsub_track_device()
-            self._unsub_track_device = None
-
-        self._update_state()
-
     @property
     def name(self) -> str:
+        """Return the name of the entity."""
         return self._config[CONF_NAME]
 
     @property
     def unique_id(self):
+        """Return a unique ID."""
         return self._config[CONF_ID]
 
     @property
     def icon(self) -> str | None:
+        """Return the icon to use in the frontend, if any."""
         return self._config.get(CONF_ICON)
 
     @property
+    def state(self) -> StateType:
+        """Return the state of the entity."""
+        return len(self.automations)
+
+    @property
     def color(self) -> str | None:
+        """Return the color to use in the frontend, if any."""
         return self._config.get(CONF_COLOR)
 
     @property
     def description(self) -> str | None:
+        """Return the description of the entity."""
         return self._config.get(CONF_DESCRIPTION)
 
     @property
     def automations(self):
-        LOGGER.error(self._config)
+        """Return the automations of the entity."""
         return self._config[CONF_AUTOMATIONS]
 
     @property
     def extra_state_attributes(self):
+        """Return the state attributes of the entity."""
         data = {}
         data[ATTR_AUTOMATIONS] = self.automations
         return data
@@ -288,3 +285,16 @@ class LabelEntityConfig:
     list_no: int
     raw_config: ConfigType | None
     validation_failed: bool
+
+
+@websocket_api.websocket_command({vol.Required(CONF_TYPE): "label/list"})
+def ws_list_label(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """List persons."""
+    yaml, storage, _ = hass.data[DOMAIN]
+    connection.send_result(
+        msg[ATTR_ID], {"storage": storage.async_items(), "config": yaml.async_items()}
+    )

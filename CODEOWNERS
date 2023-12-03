@@ -673,6 +673,7 @@ build.json @home-assistant/supervisor
 /tests/components/kraken/ @eifinger
 /homeassistant/components/kulersky/ @emlove
 /tests/components/kulersky/ @emlove
+/homeassistant/components/label/ @home-assistant/core
 /homeassistant/components/lacrosse_view/ @IceBotYT
 /tests/components/lacrosse_view/ @IceBotYT
 /homeassistant/components/lametric/ @robbiet480 @frenck @bachya
