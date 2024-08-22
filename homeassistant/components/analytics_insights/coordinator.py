@@ -28,10 +28,18 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class AnalyticsData:
-    """Analytics data class."""
+class Analytic:
+    """Analytic data class."""
 
-    core_integrations: dict[str, int]
+    position: int
+    installations: int
+
+
+@dataclass(frozen=True)
+class AnalyticsData:
+    """Analytics set data class."""
+
+    core_integrations: dict[str, Analytic]
     custom_integrations: dict[str, int]
 
 
@@ -68,14 +76,23 @@ class HomeassistantAnalyticsDataUpdateCoordinator(DataUpdateCoordinator[Analytic
             ) from err
         except HomeassistantAnalyticsNotModifiedError:
             return self.data
+
+        # Sort data based on its value, so we can determine the position of each integration
+        sorted_integrations = sorted(
+            data.integrations.items(), key=lambda x: x[1], reverse=True
+        )
+
         core_integrations = {
-            integration: data.integrations.get(integration, 0)
-            for integration in self._tracked_integrations
+            integration: Analytic(position, value)
+            for position, (integration, value) in enumerate(sorted_integrations, 1)
+            if integration in self._tracked_integrations
         }
+
         custom_integrations = {
             integration: get_custom_integration_value(custom_data, integration)
             for integration in self._tracked_custom_integrations
         }
+
         return AnalyticsData(core_integrations, custom_integrations)
 
 

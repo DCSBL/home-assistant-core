@@ -4,6 +4,9 @@
       "core_integrations": {
         "default": "mdi:puzzle"
       },
+      "core_integration_position": {
+        "default": "mdi:fire"
+      },
       "custom_integrations": {
         "default": "mdi:puzzle-edit"
       }

@@ -39,7 +39,21 @@ def get_core_integration_entity_description(
         name=name,
         state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement="active installations",
-        value_fn=lambda data: data.core_integrations.get(domain),
+        value_fn=lambda data: data.core_integrations.get(domain).installations,
+    )
+
+
+def get_core_integration_position_entity_description(
+    domain: str, name: str
+) -> AnalyticsSensorEntityDescription:
+    """Get core integration entity description."""
+    return AnalyticsSensorEntityDescription(
+        key=f"core_{domain}_position",
+        translation_key="core_integration_position",
+        name=f"{name} position",
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement=None,
+        value_fn=lambda data: data.core_integrations.get(domain).position,
     )
 
 
@@ -73,6 +87,15 @@ async def async_setup_entry(
         HomeassistantAnalyticsSensor(
             coordinator,
             get_core_integration_entity_description(
+                integration_domain, analytics_data.names[integration_domain]
+            ),
+        )
+        for integration_domain in coordinator.data.core_integrations
+    )
+    entities.extend(
+        HomeassistantAnalyticsSensor(
+            coordinator,
+            get_core_integration_position_entity_description(
                 integration_domain, analytics_data.names[integration_domain]
             ),
         )
