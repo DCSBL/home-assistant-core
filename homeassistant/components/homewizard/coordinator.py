@@ -27,6 +27,11 @@ class HWEnergyDeviceUpdateCoordinator(DataUpdateCoordinator[DeviceResponseEntry]
         super().__init__(hass, LOGGER, name=DOMAIN, update_interval=UPDATE_INTERVAL)
         self.api = api
 
+        print("Hello from HWEnergyDeviceUpdateCoordinator")
+
+    def __del__(self):
+        print("Bye from HWEnergyDeviceUpdateCoordinator")
+
     async def _async_update_data(self) -> DeviceResponseEntry:
         """Fetch all device and sensor data from api."""
         try:

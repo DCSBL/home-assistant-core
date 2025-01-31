@@ -23,8 +23,10 @@ import voluptuous as vol
 from homeassistant.components import onboarding
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_IP_ADDRESS, CONF_TOKEN
+from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import TextSelector
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
@@ -49,7 +51,9 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] | None = None
         if user_input is not None:
             try:
-                device_info = await async_try_connect(user_input[CONF_IP_ADDRESS])
+                device_info = await async_try_connect(
+                    self.hass, user_input[CONF_IP_ADDRESS]
+                )
             except RecoverableError as ex:
                 LOGGER.error(ex)
                 errors = {"base": ex.error_code}
@@ -88,7 +92,7 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Tell device we want a token, user must now press the button within 30 seconds
         # The first attempt will always fail, but this opens the window to press the button
-        token = await async_request_token(self.ip_address)
+        token = await async_request_token(self.hass, self.ip_address)
         errors: dict[str, str] | None = None
 
         if token is None:
@@ -99,7 +103,11 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Now we got a token, we can ask for some more info
 
-        async with HomeWizardEnergyV2(self.ip_address, token=token) as api:
+        async with HomeWizardEnergyV2(
+            self.ip_address,
+            token=token,
+            clientsession=async_get_clientsession(self.hass),
+        ) as api:
             device_info = await api.device()
 
         data = {
@@ -148,7 +156,7 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
         This flow is triggered only by DHCP discovery of known devices.
         """
         try:
-            device = await async_try_connect(discovery_info.ip)
+            device = await async_try_connect(self.hass, discovery_info.ip)
         except RecoverableError as ex:
             LOGGER.error(ex)
             return self.async_abort(reason="unknown")
@@ -180,7 +188,7 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] | None = None
         if user_input is not None or not onboarding.async_is_onboarded(self.hass):
             try:
-                await async_try_connect(self.ip_address)
+                await async_try_connect(self.hass, self.ip_address)
             except RecoverableError as ex:
                 LOGGER.error(ex)
                 errors = {"base": ex.error_code}
@@ -232,7 +240,7 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             reauth_entry = self._get_reauth_entry()
             try:
-                await async_try_connect(reauth_entry.data[CONF_IP_ADDRESS])
+                await async_try_connect(self.hass, reauth_entry.data[CONF_IP_ADDRESS])
             except RecoverableError as ex:
                 LOGGER.error(ex)
                 errors = {"base": ex.error_code}
@@ -250,7 +258,7 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
 
         errors: dict[str, str] | None = None
 
-        token = await async_request_token(self.ip_address)
+        token = await async_request_token(self.hass, self.ip_address)
 
         if user_input is not None:
             if token is None:
@@ -274,7 +282,9 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input:
             try:
-                device_info = await async_try_connect(user_input[CONF_IP_ADDRESS])
+                device_info = await async_try_connect(
+                    self.hass, user_input[CONF_IP_ADDRESS]
+                )
 
             except RecoverableError as ex:
                 LOGGER.error(ex)
@@ -306,7 +316,7 @@ class HomeWizardConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-async def async_try_connect(ip_address: str) -> Device:
+async def async_try_connect(hass: HomeAssistant, ip_address: str) -> Device:
     """Try to connect.
 
     Make connection with device to test the connection
@@ -316,10 +326,11 @@ async def async_try_connect(ip_address: str) -> Device:
     energy_api: HomeWizardEnergy
 
     # Determine if device is v1 or v2 capable
-    if await has_v2_api(ip_address):
-        energy_api = HomeWizardEnergyV2(ip_address)
+    clientsession = async_get_clientsession(hass)
+    if await has_v2_api(ip_address, websession=clientsession):
+        energy_api = HomeWizardEnergyV2(ip_address, clientsession=clientsession)
     else:
-        energy_api = HomeWizardEnergyV1(ip_address)
+        energy_api = HomeWizardEnergyV1(ip_address, clientsession=clientsession)
 
     try:
         return await energy_api.device()
@@ -349,14 +360,14 @@ async def async_try_connect(ip_address: str) -> Device:
         await energy_api.close()
 
 
-async def async_request_token(ip_address: str) -> str | None:
+async def async_request_token(hass: HomeAssistant, ip_address: str) -> str | None:
     """Try to request a token from the device.
 
     This method is used to request a token from the device,
     it will return None if the token request failed.
     """
 
-    api = HomeWizardEnergyV2(ip_address)
+    api = HomeWizardEnergyV2(ip_address, clientsession=async_get_clientsession(hass))
 
     try:
         return await api.get_token("home-assistant")

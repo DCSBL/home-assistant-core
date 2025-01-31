@@ -11,7 +11,10 @@ from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntry
 from homeassistant.const import CONF_IP_ADDRESS, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import (
+    async_create_clientsession,
+    async_get_clientsession,
+)
 from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue
 
 from .const import DOMAIN, PLATFORMS
@@ -70,6 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HomeWizardConfigEntry) -
 
 async def async_unload_entry(hass: HomeAssistant, entry: HomeWizardConfigEntry) -> bool:
     """Unload a config entry."""
+    print("Bye from Homewizard")
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
