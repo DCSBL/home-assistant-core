@@ -17,8 +17,8 @@ from homeassistant.helpers.aiohttp_client import (
 )
 from homeassistant.helpers.issue_registry import IssueSeverity, async_create_issue
 
-from .const import DOMAIN, PLATFORMS
-from .coordinator import HWEnergyDeviceUpdateCoordinator
+from .const import DOMAIN, LOGGER
+from .coordinator import Api, HWEnergyDeviceUpdateCoordinator
 
 type HomeWizardConfigEntry = ConfigEntry[HWEnergyDeviceUpdateCoordinator]
 
@@ -26,76 +26,22 @@ type HomeWizardConfigEntry = ConfigEntry[HWEnergyDeviceUpdateCoordinator]
 async def async_setup_entry(hass: HomeAssistant, entry: HomeWizardConfigEntry) -> bool:
     """Set up Homewizard from a config entry."""
 
-    api: HomeWizardEnergy
+    api = Api()
 
-    if token := entry.data.get(CONF_TOKEN):
-        api = HomeWizardEnergyV2(
-            entry.data[CONF_IP_ADDRESS],
-            token=token,
-            clientsession=async_get_clientsession(hass),
-        )
-    else:
-        api = HomeWizardEnergyV1(
-            entry.data[CONF_IP_ADDRESS],
-            clientsession=async_get_clientsession(hass),
-        )
-
-        await async_check_v2_support_and_create_issue(hass, entry)
-
+    LOGGER.debug("Setting up entry %s", entry.entry_id)
     coordinator = HWEnergyDeviceUpdateCoordinator(hass, api)
-    try:
-        await coordinator.async_config_entry_first_refresh()
-
-    except ConfigEntryNotReady:
-        await coordinator.api.close()
-
-        if coordinator.api_disabled:
-            entry.async_start_reauth(hass)
-
-        raise
+    await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
 
-    # Abort reauth config flow if active
-    for progress_flow in hass.config_entries.flow.async_progress_by_handler(DOMAIN):
-        if (
-            "context" in progress_flow
-            and progress_flow["context"].get("source") == SOURCE_REAUTH
-        ):
-            hass.config_entries.flow.async_abort(progress_flow["flow_id"])
-
     # Finalize
-    entry.async_on_unload(coordinator.api.close)
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await hass.config_entries.async_forward_entry_setups(entry, [])
 
+    LOGGER.debug("Entry %s is ready", entry.entry_id)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: HomeWizardConfigEntry) -> bool:
     """Unload a config entry."""
-    print("Bye from Homewizard")
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-
-async def async_check_v2_support_and_create_issue(
-    hass: HomeAssistant, entry: HomeWizardConfigEntry
-) -> None:
-    """Check if the device supports v2 and create an issue if not."""
-
-    if not await has_v2_api(entry.data[CONF_IP_ADDRESS], async_get_clientsession(hass)):
-        return
-
-    async_create_issue(
-        hass,
-        DOMAIN,
-        f"migrate_to_v2_api_{entry.entry_id}",
-        is_fixable=True,
-        is_persistent=False,
-        learn_more_url="https://home-assistant.io/integrations/homewizard/#which-button-do-i-need-to-press-to-configure-the-device",
-        translation_key="migrate_to_v2_api",
-        translation_placeholders={
-            "title": entry.title,
-        },
-        severity=IssueSeverity.WARNING,
-        data={"entry_id": entry.entry_id},
-    )
+    LOGGER.debug("Unloading entry %s", entry.entry_id)
+    return await hass.config_entries.async_unload_platforms(entry, [])

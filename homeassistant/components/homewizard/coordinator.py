@@ -2,65 +2,39 @@
 
 from __future__ import annotations
 
-from homewizard_energy import HomeWizardEnergy
-from homewizard_energy.errors import DisabledError, RequestError, UnauthorizedError
-from homewizard_energy.models import CombinedModels as DeviceResponseEntry
+from asyncio import sleep
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, LOGGER, UPDATE_INTERVAL
 
 
-class HWEnergyDeviceUpdateCoordinator(DataUpdateCoordinator[DeviceResponseEntry]):
-    """Gather data for the energy device."""
+class Api:
+    """Some API"""
 
-    api: HomeWizardEnergy
-    api_disabled: bool = False
-
-    config_entry: ConfigEntry
-
-    def __init__(self, hass: HomeAssistant, api: HomeWizardEnergy) -> None:
-        """Initialize update coordinator."""
-        super().__init__(hass, LOGGER, name=DOMAIN, update_interval=UPDATE_INTERVAL)
-        self.api = api
-
-        print("Hello from HWEnergyDeviceUpdateCoordinator")
+    def __init__(self) -> None:
+        LOGGER.warning("Api __init__")
 
     def __del__(self):
-        print("Bye from HWEnergyDeviceUpdateCoordinator")
+        print("Api __del__")
 
-    async def _async_update_data(self) -> DeviceResponseEntry:
+
+class HWEnergyDeviceUpdateCoordinator(DataUpdateCoordinator[None]):
+    """Gather data for the energy device."""
+
+    def __init__(self, hass, api: Api) -> None:
+        """Initialize update coordinator."""
+        super().__init__(hass, LOGGER, name=DOMAIN, update_interval=UPDATE_INTERVAL)
+        LOGGER.warning("__init__ HWEnergyDeviceUpdateCoordinator")
+
+        self.api = api
+
+    def __del__(self):
+        print("__del__ from HWEnergyDeviceUpdateCoordinator")
+
+    async def _async_update_data(self) -> None:
         """Fetch all device and sensor data from api."""
-        try:
-            data = await self.api.combined()
 
-        except RequestError as ex:
-            raise UpdateFailed(
-                ex, translation_domain=DOMAIN, translation_key="communication_error"
-            ) from ex
-
-        except DisabledError as ex:
-            if not self.api_disabled:
-                self.api_disabled = True
-
-                # Do not reload when performing first refresh
-                if self.data is not None:
-                    # Reload config entry to let init flow handle retrying and trigger repair flow
-                    self.hass.config_entries.async_schedule_reload(
-                        self.config_entry.entry_id
-                    )
-
-            raise UpdateFailed(
-                ex, translation_domain=DOMAIN, translation_key="api_disabled"
-            ) from ex
-
-        except UnauthorizedError as ex:
-            raise ConfigEntryAuthFailed from ex
-
-        self.api_disabled = False
-
-        self.data = data
-        return data
+        LOGGER.warning("Updating")
+        await sleep(1)
+        LOGGER.warning("Done")

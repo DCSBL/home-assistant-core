@@ -854,6 +854,7 @@ class ConfigEntry[_DataT = Any]:
             if domain_is_integration and result:
                 await self._async_process_on_unload(hass)
                 if hasattr(self, "runtime_data"):
+                    _LOGGER.warning("Removing runtime data for %s", self.title)
                     object.__delattr__(self, "runtime_data")
 
                 self._async_set_state(hass, ConfigEntryState.NOT_LOADED, None)
