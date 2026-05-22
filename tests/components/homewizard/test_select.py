@@ -22,59 +22,36 @@ from homeassistant.util import dt as dt_util
 
 from tests.common import async_fire_time_changed
 
-pytestmark = [
-    pytest.mark.usefixtures("init_integration"),
-]
+BATTERY_SELECT_ENTITY_ID = "select.device_battery_group_mode"
 
 
+@pytest.mark.usefixtures("init_integration")
 @pytest.mark.parametrize(
-    ("device_fixture", "entity_ids"),
+    "device_fixture",
     [
-        (
-            "HWE-WTR",
-            [
-                "select.device_battery_group_mode",
-            ],
-        ),
-        (
-            "SDM230",
-            [
-                "select.device_battery_group_mode",
-            ],
-        ),
-        (
-            "SDM630",
-            [
-                "select.device_battery_group_mode",
-            ],
-        ),
-        (
-            "HWE-KWH1",
-            [
-                "select.device_battery_group_mode",
-            ],
-        ),
-        (
-            "HWE-KWH3",
-            [
-                "select.device_battery_group_mode",
-            ],
-        ),
+        "HWE-P1",
+        "HWE-P1-no-batteries",
+        "HWE-WTR",
+        "SDM230",
+        "SDM630",
+        "HWE-KWH1",
+        "HWE-KWH3",
     ],
 )
-async def test_entities_not_created_for_device(
+async def test_v1_devices_do_not_create_select_entity(
     hass: HomeAssistant,
-    entity_ids: list[str],
+    entity_registry: er.EntityRegistry,
 ) -> None:
-    """Ensures entities for a specific device are not created."""
-    for entity_id in entity_ids:
-        assert not hass.states.get(entity_id)
+    """Ensure v1 devices do not create the batteries select entity."""
+    assert not hass.states.get(BATTERY_SELECT_ENTITY_ID)
+    assert entity_registry.async_get(BATTERY_SELECT_ENTITY_ID) is None
 
 
+@pytest.mark.usefixtures("init_integration_v2")
 @pytest.mark.parametrize(
     ("device_fixture", "entity_id"),
     [
-        ("HWE-P1", "select.device_battery_group_mode"),
+        ("HWE-P1", BATTERY_SELECT_ENTITY_ID),
     ],
 )
 async def test_select_entity_snapshots(
@@ -96,27 +73,28 @@ async def test_select_entity_snapshots(
     assert snapshot == device_entry
 
 
+@pytest.mark.usefixtures("init_integration_v2")
 @pytest.mark.parametrize(
     ("device_fixture", "entity_id", "option", "expected_mode"),
     [
         (
             "HWE-P1",
-            "select.device_battery_group_mode",
+            BATTERY_SELECT_ENTITY_ID,
             "standby",
             Batteries.Mode.STANDBY,
         ),
         (
             "HWE-P1",
-            "select.device_battery_group_mode",
+            BATTERY_SELECT_ENTITY_ID,
             "to_full",
             Batteries.Mode.TO_FULL,
         ),
-        ("HWE-P1", "select.device_battery_group_mode", "zero", Batteries.Mode.ZERO),
+        ("HWE-P1", BATTERY_SELECT_ENTITY_ID, "zero", Batteries.Mode.ZERO),
     ],
 )
 async def test_select_set_option(
     hass: HomeAssistant,
-    mock_homewizardenergy: MagicMock,
+    mock_homewizardenergy_v2: MagicMock,
     entity_id: str,
     option: str,
     expected_mode: Batteries.Mode,
@@ -131,25 +109,26 @@ async def test_select_set_option(
         },
         blocking=True,
     )
-    mock_homewizardenergy.batteries.assert_called_with(mode=expected_mode)
+    mock_homewizardenergy_v2.batteries.assert_called_with(expected_mode)
 
 
+@pytest.mark.usefixtures("init_integration_v2")
 @pytest.mark.parametrize(
     ("device_fixture", "entity_id", "option"),
     [
-        ("HWE-P1", "select.device_battery_group_mode", "zero"),
-        ("HWE-P1", "select.device_battery_group_mode", "standby"),
-        ("HWE-P1", "select.device_battery_group_mode", "to_full"),
+        ("HWE-P1", BATTERY_SELECT_ENTITY_ID, "zero"),
+        ("HWE-P1", BATTERY_SELECT_ENTITY_ID, "standby"),
+        ("HWE-P1", BATTERY_SELECT_ENTITY_ID, "to_full"),
     ],
 )
 async def test_select_request_error(
     hass: HomeAssistant,
-    mock_homewizardenergy: MagicMock,
+    mock_homewizardenergy_v2: MagicMock,
     entity_id: str,
     option: str,
 ) -> None:
     """Test that RequestError is handled and raises HomeAssistantError."""
-    mock_homewizardenergy.batteries.side_effect = RequestError
+    mock_homewizardenergy_v2.batteries.side_effect = RequestError
     with pytest.raises(
         HomeAssistantError,
         match=r"^An error occurred while communicating with your HomeWizard device$",
@@ -165,20 +144,21 @@ async def test_select_request_error(
         )
 
 
+@pytest.mark.usefixtures("init_integration_v2")
 @pytest.mark.parametrize(
     ("device_fixture", "entity_id", "option"),
     [
-        ("HWE-P1", "select.device_battery_group_mode", "to_full"),
+        ("HWE-P1", BATTERY_SELECT_ENTITY_ID, "to_full"),
     ],
 )
 async def test_select_unauthorized_error(
     hass: HomeAssistant,
-    mock_homewizardenergy: MagicMock,
+    mock_homewizardenergy_v2: MagicMock,
     entity_id: str,
     option: str,
 ) -> None:
     """Test that UnauthorizedError is handled and raises HomeAssistantError."""
-    mock_homewizardenergy.batteries.side_effect = UnauthorizedError
+    mock_homewizardenergy_v2.batteries.side_effect = UnauthorizedError
     with pytest.raises(
         HomeAssistantError,
         match=(
@@ -198,23 +178,24 @@ async def test_select_unauthorized_error(
         )
 
 
+@pytest.mark.usefixtures("init_integration_v2")
 @pytest.mark.parametrize("device_fixture", ["HWE-P1"])
 @pytest.mark.parametrize("exception", [RequestError, UnsupportedError])
 @pytest.mark.parametrize(
     ("entity_id", "method"),
     [
-        ("select.device_battery_group_mode", "combined"),
+        (BATTERY_SELECT_ENTITY_ID, "combined"),
     ],
 )
 async def test_select_unreachable(
     hass: HomeAssistant,
-    mock_homewizardenergy: MagicMock,
+    mock_homewizardenergy_v2: MagicMock,
     exception: Exception,
     entity_id: str,
     method: str,
 ) -> None:
     """Test that unreachable devices are marked as unavailable."""
-    mocked_method = getattr(mock_homewizardenergy, method)
+    mocked_method = getattr(mock_homewizardenergy_v2, method)
     mocked_method.side_effect = exception
     async_fire_time_changed(hass, dt_util.utcnow() + UPDATE_INTERVAL)
     await hass.async_block_till_done()
@@ -223,15 +204,16 @@ async def test_select_unreachable(
     assert state.state == STATE_UNAVAILABLE
 
 
+@pytest.mark.usefixtures("init_integration_v2")
 @pytest.mark.parametrize(
     ("device_fixture", "entity_id"),
     [
-        ("HWE-P1", "select.device_battery_group_mode"),
+        ("HWE-P1", BATTERY_SELECT_ENTITY_ID),
     ],
 )
 async def test_select_multiple_state_changes(
     hass: HomeAssistant,
-    mock_homewizardenergy: MagicMock,
+    mock_homewizardenergy_v2: MagicMock,
     entity_id: str,
 ) -> None:
     """Test changing select state multiple times in sequence."""
@@ -244,7 +226,7 @@ async def test_select_multiple_state_changes(
         },
         blocking=True,
     )
-    mock_homewizardenergy.batteries.assert_called_with(mode=Batteries.Mode.ZERO)
+    mock_homewizardenergy_v2.batteries.assert_called_with(Batteries.Mode.ZERO)
 
     await hass.services.async_call(
         SELECT_DOMAIN,
@@ -255,7 +237,7 @@ async def test_select_multiple_state_changes(
         },
         blocking=True,
     )
-    mock_homewizardenergy.batteries.assert_called_with(mode=Batteries.Mode.TO_FULL)
+    mock_homewizardenergy_v2.batteries.assert_called_with(Batteries.Mode.TO_FULL)
 
     await hass.services.async_call(
         SELECT_DOMAIN,
@@ -266,27 +248,24 @@ async def test_select_multiple_state_changes(
         },
         blocking=True,
     )
-    mock_homewizardenergy.batteries.assert_called_with(mode=Batteries.Mode.STANDBY)
+    mock_homewizardenergy_v2.batteries.assert_called_with(Batteries.Mode.STANDBY)
 
 
+@pytest.mark.usefixtures("init_integration_v2")
 @pytest.mark.parametrize(
-    ("device_fixture", "entity_ids"),
+    ("device_fixture", "entity_id"),
     [
-        (
-            "HWE-P1-no-batteries",
-            [
-                "select.device_battery_group_mode",
-            ],
-        ),
+        ("HWE-P1-no-batteries", BATTERY_SELECT_ENTITY_ID),
     ],
 )
 async def test_disabled_by_default_selects(
-    hass: HomeAssistant, entity_registry: er.EntityRegistry, entity_ids: list[str]
+    hass: HomeAssistant,
+    entity_registry: er.EntityRegistry,
+    entity_id: str,
 ) -> None:
     """Test the disabled by default selects."""
-    for entity_id in entity_ids:
-        assert not hass.states.get(entity_id)
+    assert not hass.states.get(entity_id)
 
-        assert (entry := entity_registry.async_get(entity_id))
-        assert entry.disabled
-        assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert (entry := entity_registry.async_get(entity_id))
+    assert entry.disabled
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION

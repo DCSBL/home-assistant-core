@@ -3,7 +3,7 @@
 from homewizard_energy.models import Batteries
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
-from homeassistant.const import EntityCategory
+from homeassistant.const import CONF_TOKEN, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -20,14 +20,19 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up HomeWizard select based on a config entry."""
-    if entry.runtime_data.data.device.supports_batteries():
-        async_add_entities(
-            [
-                HomeWizardBatteryModeSelectEntity(
-                    coordinator=entry.runtime_data,
-                )
-            ]
-        )
+    if (
+        CONF_TOKEN not in entry.data
+        or not entry.runtime_data.data.device.supports_batteries()
+    ):
+        return
+
+    async_add_entities(
+        [
+            HomeWizardBatteryModeSelectEntity(
+                coordinator=entry.runtime_data,
+            )
+        ]
+    )
 
 
 class HomeWizardBatteryModeSelectEntity(HomeWizardEntity, SelectEntity):
