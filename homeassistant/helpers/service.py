@@ -948,7 +948,15 @@ async def entity_service_call(
 
     response_data = await _async_handle_entity_calls(
         [
-            (entity, _handle_single_entity_call(hass, entity, func, data))
+            (
+                entity,
+                # An entity of a sandboxed integration is a stand-in, its
+                # sandbox runs the service on the real entity.
+                sandbox_call(call)
+                if (sandbox_call := getattr(entity, "async_sandbox_service_call", None))
+                is not None
+                else _handle_single_entity_call(hass, entity, func, data),
+            )
             for entity in entities
         ],
         context=call.context,

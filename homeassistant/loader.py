@@ -48,6 +48,7 @@ from .generated.usb import USB
 from .generated.zeroconf import HOMEKIT, ZEROCONF
 from .helpers.json import cached_json_fragment, json_fragment
 from .helpers.typing import Undefined
+from .sandbox.const import DATA_SANDBOX_POLICY
 from .util.async_ import create_eager_task, wait_shared_future
 from .util.hass_dict import HassKey
 from .util.json import JSON_DECODE_EXCEPTIONS, json_loads
@@ -915,6 +916,7 @@ class Integration:
         self._cache = hass.data[DATA_COMPONENTS]
         self._missing_platforms_cache = hass.data[DATA_MISSING_PLATFORMS]
         self._top_level_files = top_level_files or set()
+        self._sandbox_group: str | Undefined | None = Undefined
         _LOGGER.info("Loaded %s from %s", self.domain, pkg_path)
 
     @cached_property
@@ -1100,6 +1102,45 @@ class Integration:
         return core_comp_path.is_file()
 
     @property
+    def sandbox_group(self) -> str | None:
+        """Return the sandbox this integration runs in, or None for core.
+
+        Decided once, before any code of the integration is imported. Built-in
+        integrations always run in core.
+        """
+        if self._sandbox_group is Undefined:
+            if (
+                self.is_built_in
+                or (policy := self.hass.data.get(DATA_SANDBOX_POLICY)) is None
+            ):
+                return None
+            self._sandbox_group = policy.group_for(
+                self.domain, self.manifest.get("version")
+            )
+        return self._sandbox_group
+
+    def _get_sandbox_component(self, group: str) -> ComponentProtocol:
+        """Return the stand-in for the component of a sandboxed integration."""
+        if (component := self._cache.get(self.domain)) is None:
+            from .sandbox.proxy import create_proxy_component  # noqa: PLC0415
+
+            component = self._cache[self.domain] = cast(
+                ComponentProtocol, create_proxy_component(self, group)
+            )
+        return component
+
+    def _get_sandbox_platform(self, group: str, platform_name: str) -> ModuleType:
+        """Return the stand-in for a platform of a sandboxed integration."""
+        full_name = f"{self.domain}.{platform_name}"
+        if (platform := self._cache.get(full_name)) is None:
+            from .sandbox.proxy import create_proxy_platform  # noqa: PLC0415
+
+            platform = self._cache[full_name] = create_proxy_platform(
+                self, group, platform_name
+            )
+        return cast(ModuleType, platform)
+
+    @property
     def version(self) -> AwesomeVersion | None:
         """Return the version of the integration."""
         if "version" not in self.manifest:
@@ -1146,6 +1187,9 @@ class Integration:
         domain = self.domain
         if domain in (cache := self._cache):
             return cache[domain]
+
+        if (group := self.sandbox_group) is not None:
+            return self._get_sandbox_component(group)
 
         if self._component_future:
             return await wait_shared_future(self._component_future)
@@ -1224,6 +1268,8 @@ class Integration:
         domain = self.domain
         if domain in (cache := self._cache):
             return cache[domain]
+        if (group := self.sandbox_group) is not None:
+            return self._get_sandbox_component(group)
         return self._get_component()
 
     def _get_component(self, preload_platforms: bool = False) -> ComponentProtocol:
@@ -1272,6 +1318,11 @@ class Integration:
         self, platform_names: Iterable[Platform | str]
     ) -> dict[str, ModuleType]:
         """Return a platforms for an integration."""
+        if (group := self.sandbox_group) is not None:
+            return {
+                platform_name: self._get_sandbox_platform(group, platform_name)
+                for platform_name in platform_names
+            }
         domain = self.domain
         platforms: dict[str, ModuleType] = {}
 
@@ -1394,10 +1445,32 @@ class Integration:
         """Return a platform for an integration."""
         if platform := self._get_platform_cached_or_raise(platform_name):
             return platform
+        if (group := self.sandbox_group) is not None:
+            return self._get_sandbox_platform(group, platform_name)
         return self._load_platform(platform_name)
 
     def platforms_exists(self, platform_names: Iterable[str]) -> list[str]:
         """Check if a platforms exists for an integration.
+
+        This method is thread-safe and can be called from the executor
+        or event loop without doing blocking I/O.
+
+        For an integration that runs in a sandbox only the platforms that have
+        a stand-in in core exist.
+        """
+        if self.sandbox_group is not None:
+            from .sandbox.const import SANDBOX_PLATFORMS  # noqa: PLC0415
+
+            return [
+                platform_name
+                for platform_name in self.platforms_on_disk(platform_names)
+                if platform_name in SANDBOX_PLATFORMS
+                or (platform_name == "config_flow" and self.config_flow)
+            ]
+        return self.platforms_on_disk(platform_names)
+
+    def platforms_on_disk(self, platform_names: Iterable[str]) -> list[str]:
+        """Return the platforms that have a file in the integration.
 
         This method is thread-safe and can be called from the executor
         or event loop without doing blocking I/O.

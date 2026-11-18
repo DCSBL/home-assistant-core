@@ -96,6 +96,7 @@ from .helpers.storage import get_internal_store_manager
 from .helpers.system_info import async_get_system_info
 from .helpers.typing import ConfigType
 from .loader import Integration
+from .sandbox.const import DATA_SANDBOX_CONFIG
 from .setup import (
     BootstrapIntegrationsProgress,
     BootstrapPhase,
@@ -583,6 +584,13 @@ async def async_from_config_dict(
             "Home Assistant core failed to initialize. Further initialization aborted"
         )
         return None
+
+    if (sandbox_config := hass.data.get(DATA_SANDBOX_CONFIG)) is not None:
+        # Before any integration loads: the sandbox decides where custom
+        # integrations run before their code is imported.
+        from .sandbox import manager as sandbox_manager  # noqa: PLC0415
+
+        await sandbox_manager.async_setup(hass, sandbox_config)
 
     await _async_set_up_integrations(hass, config, start)
 
