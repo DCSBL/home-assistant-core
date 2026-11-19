@@ -18,6 +18,56 @@
         "user": "Add command"
       },
       "step": {
+        "reconfigure": {
+          "data": {
+            "method": "[%key:component::rest_command::config_subentries::command::step::user::data::method%]",
+            "payload": "[%key:component::rest_command::config_subentries::command::step::user::data::payload%]",
+            "url": "[%key:common::config_flow::data::url%]"
+          },
+          "data_description": {
+            "method": "[%key:component::rest_command::config_subentries::command::step::user::data_description::method%]",
+            "payload": "[%key:component::rest_command::config_subentries::command::step::user::data_description::payload%]",
+            "url": "[%key:component::rest_command::config_subentries::command::step::user::data_description::url%]"
+          },
+          "description": "Change the request sent by {action}. The action name stays the same, so your automations keep working.",
+          "sections": {
+            "advanced": {
+              "data": {
+                "content_type": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data::content_type%]",
+                "headers": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data::headers%]",
+                "insecure_cipher": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data::insecure_cipher%]",
+                "skip_url_encoding": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data::skip_url_encoding%]",
+                "timeout": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data::timeout%]",
+                "verify_ssl": "[%key:common::config_flow::data::verify_ssl%]"
+              },
+              "data_description": {
+                "content_type": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data_description::content_type%]",
+                "headers": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data_description::headers%]",
+                "insecure_cipher": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data_description::insecure_cipher%]",
+                "skip_url_encoding": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data_description::skip_url_encoding%]",
+                "timeout": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data_description::timeout%]",
+                "verify_ssl": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::data_description::verify_ssl%]"
+              },
+              "description": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::description%]",
+              "name": "[%key:component::rest_command::config_subentries::command::step::user::sections::advanced::name%]"
+            },
+            "auth": {
+              "data": {
+                "authentication": "[%key:component::rest_command::config_subentries::command::step::user::sections::auth::data::authentication%]",
+                "password": "[%key:common::config_flow::data::password%]",
+                "username": "[%key:common::config_flow::data::username%]"
+              },
+              "data_description": {
+                "authentication": "[%key:component::rest_command::config_subentries::command::step::user::sections::auth::data_description::authentication%]",
+                "password": "[%key:component::rest_command::config_subentries::command::step::user::sections::auth::data_description::password%]",
+                "username": "[%key:component::rest_command::config_subentries::command::step::user::sections::auth::data_description::username%]"
+              },
+              "description": "[%key:component::rest_command::config_subentries::command::step::user::sections::auth::description%]",
+              "name": "[%key:component::rest_command::config_subentries::command::step::user::sections::auth::name%]"
+            }
+          },
+          "title": "Change command"
+        },
         "user": {
           "data": {
             "action": "Action name",

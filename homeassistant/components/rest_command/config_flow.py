@@ -64,6 +64,16 @@ from .const import (
     SUBENTRY_TYPE_COMMAND,
 )
 
+AUTH_FIELDS = (CONF_AUTHENTICATION, CONF_USERNAME, CONF_PASSWORD)
+ADVANCED_FIELDS = (
+    CONF_HEADERS,
+    CONF_CONTENT_TYPE,
+    CONF_TIMEOUT,
+    CONF_VERIFY_SSL,
+    CONF_INSECURE_CIPHER,
+    CONF_SKIP_URL_ENCODING,
+)
+
 COMMAND_FIELDS_SCHEMA = {
     probatio.Required(CONF_URL): TemplateSelector(),
     probatio.Required(CONF_METHOD, default=DEFAULT_METHOD): SelectSelector(
@@ -143,6 +153,7 @@ DESCRIPTION_PLACEHOLDERS = {
     "example_data": "door: front",
     "example_headers": 'Authorization: "Bearer {{ token }}"',
 }
+RECONFIGURE_SCHEMA = probatio.Schema(COMMAND_FIELDS_SCHEMA)
 
 TITLE = "RESTful Command"
 
@@ -159,6 +170,15 @@ def _flatten(user_input: dict[str, Any]) -> dict[str, Any]:
         for key, value in data.items()
         if value not in (None, "", {})
         or (key in (CONF_USERNAME, CONF_PASSWORD) and value == "")
+    }
+
+
+def _to_sections(data: dict[str, Any]) -> dict[str, Any]:
+    """Put stored values in the form sections, for suggested values."""
+    return {
+        **data,
+        SECTION_AUTH: {key: data[key] for key in AUTH_FIELDS if key in data},
+        SECTION_ADVANCED: {key: data[key] for key in ADVANCED_FIELDS if key in data},
     }
 
 
@@ -242,5 +262,33 @@ class RestCommandSubentryFlowHandler(ConfigSubentryFlow):
                 USER_SCHEMA, user_input or {}
             ),
             description_placeholders=placeholders,
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Change a REST command, keeping its action name."""
+        subentry = self._get_reconfigure_subentry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data = _flatten(user_input)
+            errors = _validate_command(data)
+            if not errors:
+                return self.async_update_and_abort(
+                    self._get_entry(),
+                    subentry,
+                    data=data,
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                RECONFIGURE_SCHEMA, user_input or _to_sections(dict(subentry.data))
+            ),
+            description_placeholders={
+                **DESCRIPTION_PLACEHOLDERS,
+                "action": f"{DOMAIN}.{subentry.unique_id}",
+            },
             errors=errors,
         )

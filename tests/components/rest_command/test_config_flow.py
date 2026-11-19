@@ -150,6 +150,51 @@ async def test_subentry_errors(
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
+async def test_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Test changing a command keeps its action name."""
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    subentry_id = next(iter(entry.subentries))
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            "url": TEST_URL,
+            "method": "get",
+            "auth": {"password": "secret"},
+            "advanced": {},
+        },
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_command"}
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            "url": TEST_URL,
+            "method": "put",
+            "auth": {},
+            "advanced": {"timeout": 20},
+        },
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.subentries[subentry_id].data == {
+        "url": TEST_URL,
+        "method": "put",
+        "timeout": 20,
+        "verify_ssl": True,
+        "insecure_cipher": False,
+        "skip_url_encoding": False,
+    }
+    assert hass.services.has_service(DOMAIN, "open_door")
+
+
 @pytest.mark.parametrize(
     "auth",
     [
