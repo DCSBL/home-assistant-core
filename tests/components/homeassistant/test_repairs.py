@@ -319,3 +319,79 @@ async def test_orphaned_config_entry_ignore_step(
     issue = issue_registry.async_get_issue(HOMEASSISTANT_DOMAIN, issue_id)
     assert issue is not None
     assert issue.dismissed_version is not None
+
+
+async def test_sandbox_unsupported_trust_step(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    hass_storage: dict[str, Any],
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """The user allows a custom integration that fails in the sandbox."""
+    assert await async_setup_component(hass, HOMEASSISTANT_DOMAIN, {})
+    assert await async_setup_component(hass, REPAIRS_DOMAIN, {REPAIRS_DOMAIN: {}})
+    issue_id = "sandbox_unsupported.hacs"
+    placeholders = {
+        "domain": "hacs",
+        "name": "HACS",
+        "version": "2.0.5",
+        "reason": "hacs depends on http, which is not available in a sandbox",
+    }
+    ir.async_create_issue(
+        hass,
+        HOMEASSISTANT_DOMAIN,
+        issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="sandbox_unsupported",
+        translation_placeholders=placeholders,
+        data=placeholders,
+    )
+    http_client = await hass_client()
+
+    data = await start_repair_fix_flow(http_client, HOMEASSISTANT_DOMAIN, issue_id)
+    assert data["type"] == "menu"
+    assert data["description_placeholders"] == placeholders
+
+    data = await process_repair_fix_flow(
+        http_client, data["flow_id"], json={"next_step_id": "trust"}
+    )
+    assert data["type"] == "create_entry"
+    assert hass_storage["core.sandbox_consent"]["data"] == {
+        "trusted": {"hacs": {"version": "2.0.5"}}
+    }
+    assert not issue_registry.async_get_issue(HOMEASSISTANT_DOMAIN, issue_id)
+
+
+async def test_sandbox_unsupported_ignore_step(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    hass_storage: dict[str, Any],
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """The user keeps a custom integration in the sandbox."""
+    assert await async_setup_component(hass, HOMEASSISTANT_DOMAIN, {})
+    assert await async_setup_component(hass, REPAIRS_DOMAIN, {REPAIRS_DOMAIN: {}})
+    issue_id = "sandbox_unsupported.hacs"
+    placeholders = {"domain": "hacs", "name": "HACS", "version": "", "reason": "x"}
+    ir.async_create_issue(
+        hass,
+        HOMEASSISTANT_DOMAIN,
+        issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="sandbox_unsupported",
+        translation_placeholders=placeholders,
+        data=placeholders,
+    )
+    http_client = await hass_client()
+
+    data = await start_repair_fix_flow(http_client, HOMEASSISTANT_DOMAIN, issue_id)
+    data = await process_repair_fix_flow(
+        http_client, data["flow_id"], json={"next_step_id": "ignore"}
+    )
+    assert data["type"] == "abort"
+    assert "core.sandbox_consent" not in hass_storage
+    assert issue_registry.async_get_issue(
+        HOMEASSISTANT_DOMAIN, issue_id
+    ).dismissed_version

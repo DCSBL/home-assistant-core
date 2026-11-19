@@ -733,6 +733,24 @@
       "description": "It's not possible to configure {integration_domain} {platform_domain} by adding `{platform_key}` to the {platform_domain} configuration. Please check the documentation for more information on how to set up this integration.\n\nTo resolve this:\n\n1. Remove `{platform_key}` occurrences from the `{platform_domain}:` configuration in your YAML configuration file.\n\n2. Restart Home Assistant.",
       "title": "Unused YAML configuration for the {integration_domain} integration"
     },
+    "sandbox_unsupported": {
+      "fix_flow": {
+        "abort": {
+          "issue_ignored": "{name} stays in the sandbox."
+        },
+        "step": {
+          "init": {
+            "description": "The custom integration {name} (`{domain}`, version {version}) runs in a sandbox: a separate process without access to your passwords, other integrations or the rest of Home Assistant. It does not work there:\n\n{reason}\n\nYou can allow it to run inside Home Assistant itself. It then gets full access to everything Home Assistant can reach, including the credentials of all your integrations. Only do this if you trust the developer of this integration. After an update you will be asked again.\n\nThe change applies after a restart.",
+            "menu_options": {
+              "ignore": "Keep it in the sandbox",
+              "trust": "Allow it to run inside Home Assistant"
+            },
+            "title": "[%key:component::homeassistant::issues::sandbox_unsupported::title%]"
+          }
+        }
+      },
+      "title": "{name} cannot run in the sandbox"
+    },
     "storage_corruption": {
       "fix_flow": {
         "step": {

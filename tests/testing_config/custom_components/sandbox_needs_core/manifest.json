@@ -1,0 +1,8 @@
+{
+  "domain": "sandbox_needs_core",
+  "name": "Sandbox needs core",
+  "codeowners": [],
+  "dependencies": ["input_boolean"],
+  "documentation": "https://example.com",
+  "version": "2.0.0"
+}

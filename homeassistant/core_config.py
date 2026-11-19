@@ -60,6 +60,16 @@ from .helpers import config_validation as cv, issue_registry as ir
 from .helpers.entity_values import EntityValues
 from .helpers.storage import Store
 from .helpers.typing import Undefined
+from .sandbox.const import (
+    CONF_CUSTOM_INTEGRATIONS as CONF_SANDBOX_CUSTOM_INTEGRATIONS,
+    CONF_FILE_ISOLATION as CONF_SANDBOX_FILE_ISOLATION,
+    CONF_ISOLATION as CONF_SANDBOX_ISOLATION,
+    CONF_SANDBOX,
+    CONF_TRUSTED_INTEGRATIONS as CONF_SANDBOX_TRUSTED_INTEGRATIONS,
+    DATA_SANDBOX_CONFIG,
+    ISOLATION_INTEGRATION as SANDBOX_ISOLATION_INTEGRATION,
+    ISOLATION_SHARED as SANDBOX_ISOLATION_SHARED,
+)
 from .util import dt as dt_util, location
 from .util.hass_dict import HassKey
 from .util.package import is_docker_env
@@ -324,6 +334,24 @@ CORE_CONFIG_SCHEMA = probatio.All(
             probatio.Optional(CONF_COUNTRY): cv.country,
             probatio.Optional(CONF_LANGUAGE): cv.language,
             probatio.Optional(CONF_DEBUG): cv.boolean,
+            probatio.Optional(CONF_SANDBOX): probatio.Schema(
+                {
+                    probatio.Optional(
+                        CONF_SANDBOX_CUSTOM_INTEGRATIONS, default=False
+                    ): cv.boolean,
+                    probatio.Optional(
+                        CONF_SANDBOX_TRUSTED_INTEGRATIONS, default=[]
+                    ): probatio.All(probatio.EnsureList(), [cv.slug]),
+                    probatio.Optional(
+                        CONF_SANDBOX_ISOLATION, default=SANDBOX_ISOLATION_SHARED
+                    ): probatio.In(
+                        [SANDBOX_ISOLATION_SHARED, SANDBOX_ISOLATION_INTEGRATION]
+                    ),
+                    probatio.Optional(
+                        CONF_SANDBOX_FILE_ISOLATION, default=True
+                    ): cv.boolean,
+                }
+            ),
             probatio.Optional(CONF_WEBRTC): probatio.Schema(
                 {
                     probatio.Required(CONF_ICE_SERVERS): probatio.All(
@@ -416,6 +444,9 @@ async def async_process_ha_core_config(hass: HomeAssistant, config: dict) -> Non
 
     if config.get(CONF_DEBUG):
         hac.debug = True
+
+    if CONF_SANDBOX in config:
+        hass.data[DATA_SANDBOX_CONFIG] = config[CONF_SANDBOX]
 
     if CONF_WEBRTC in config:
         hac.webrtc.ice_servers = [
