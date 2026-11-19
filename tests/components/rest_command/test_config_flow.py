@@ -195,10 +195,17 @@ async def test_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     assert hass.services.has_service(DOMAIN, "open_door")
 
 
-async def test_empty_password_is_kept(
-    hass: HomeAssistant, entry: MockConfigEntry
+@pytest.mark.parametrize(
+    "auth",
+    [
+        {"username": "user", "password": ""},
+        {"username": "", "password": "token"},
+    ],
+)
+async def test_empty_credential_is_kept(
+    hass: HomeAssistant, entry: MockConfigEntry, auth: dict[str, str]
 ) -> None:
-    """Test an explicitly empty password is stored, like in YAML."""
+    """Test an explicitly empty username or password is stored, like in YAML."""
     result = await _start_subentry_flow(hass, entry)
     result = await hass.config_entries.subentries.async_configure(
         result["flow_id"],
@@ -206,13 +213,12 @@ async def test_empty_password_is_kept(
             "action": "New command",
             "url": TEST_URL,
             "method": "get",
-            "auth": {"username": "user", "password": ""},
+            "auth": auth,
             "advanced": {},
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"]["username"] == "user"
-    assert result["data"]["password"] == ""
+    assert {key: result["data"][key] for key in auth} == auth
 
 
 async def test_action_from_yaml_exists(
