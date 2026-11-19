@@ -118,6 +118,10 @@
     "invalid_command": {
       "description": "The command {action} of {server} could not be set up, so the action is not available: {error}.\n\nThis can happen when its saved settings are no longer valid after an update. Go to Settings > Devices & services > RESTful Command, delete the command and add it again.",
       "title": "RESTful Command {action} is not valid"
+    },
+    "yaml_imported": {
+      "description": "Your rest_command YAML configuration was imported into the UI. Commands are grouped per server under Settings > Devices & services > RESTful Command, and keep their action names.\n\nRemove the rest_command: section from your configuration.yaml and restart Home Assistant to fix this issue.\n\nChanges to commands that were already imported are no longer read from YAML. New commands in YAML are still imported when Home Assistant starts or when you run the reload action. Secrets from secrets.yaml are stored in the UI configuration in plain text.",
+      "title": "RESTful Command YAML configuration was imported"
     }
   },
   "selector": {
@@ -139,7 +143,7 @@
   },
   "services": {
     "reload": {
-      "description": "Reloads RESTful commands from the YAML-configuration.",
+      "description": "Imports new RESTful commands from the YAML configuration into the UI. Commands that were already imported are not changed.",
       "name": "[%key:common::action::reload%]"
     }
   }
