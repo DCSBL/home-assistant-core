@@ -10,6 +10,7 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    ConfigSubentry,
     ConfigSubentryFlow,
     FlowType,
     SubentryFlowContext,
@@ -210,22 +211,46 @@ class RestCommandConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Add a server that commands are sent to."""
+        return await self._async_step_server("user", user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the server that commands are sent to."""
+        return await self._async_step_server(
+            "reconfigure", user_input, self._get_reconfigure_entry()
+        )
+
+    async def _async_step_server(
+        self,
+        step_id: str,
+        user_input: dict[str, Any] | None,
+        entry: ConfigEntry | None = None,
+    ) -> ConfigFlowResult:
+        """Add or change a server."""
         errors: dict[str, str] = {}
         if user_input is not None:
             # The path of each command starts with a slash
             url = user_input[CONF_URL] = user_input[CONF_URL].strip().rstrip("/")
-            self._async_abort_entries_match({CONF_URL: url})
+            if any(
+                other.data[CONF_URL] == url
+                for other in self._async_current_entries(include_ignore=False)
+                if entry is None or other.entry_id != entry.entry_id
+            ):
+                return self.async_abort(reason="already_configured")
             if not _is_server_url(url):
                 errors[CONF_URL] = "invalid_url"
             else:
                 errors = _validate(user_input)
+            if not errors and entry is not None:
+                return self.async_update_and_abort(entry, title=url, data=user_input)
             if not errors:
                 return self.async_create_entry(title=url, data=user_input)
 
         return self.async_show_form(
-            step_id="user",
+            step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(
-                SERVER_SCHEMA, user_input or {}
+                SERVER_SCHEMA, user_input or (entry.data if entry else {})
             ),
             description_placeholders=DESCRIPTION_PLACEHOLDERS,
             errors=errors,
@@ -256,11 +281,28 @@ class RestCommandSubentryFlowHandler(ConfigSubentryFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Add a REST command."""
+        return await self._async_step_command("user", user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Change a REST command."""
+        return await self._async_step_command(
+            "reconfigure", user_input, self._get_reconfigure_subentry()
+        )
+
+    async def _async_step_command(
+        self,
+        step_id: str,
+        user_input: dict[str, Any] | None,
+        subentry: ConfigSubentry | None = None,
+    ) -> SubentryFlowResult:
+        """Add or change a REST command."""
         entry = self._get_entry()
         errors: dict[str, str] = {}
         placeholders = {
             **DESCRIPTION_PLACEHOLDERS,
-            "action": "",
+            "action": f"{DOMAIN}.{slugify(subentry.title)}" if subentry else "",
             "url": entry.data[CONF_URL],
         }
         if user_input is not None:
@@ -273,22 +315,32 @@ class RestCommandSubentryFlowHandler(ConfigSubentryFlow):
             placeholders["action"] = f"{DOMAIN}.{action}"
             if action in ("", "unknown", SERVICE_RELOAD):
                 errors[CONF_NAME] = "invalid_name"
-            elif self.hass.services.has_service(DOMAIN, action) or any(
-                slugify(subentry.title) == action
-                for other in self.hass.config_entries.async_entries(DOMAIN)
-                for subentry in other.subentries.values()
+            elif (subentry is None or action != slugify(subentry.title)) and (
+                self.hass.services.has_service(DOMAIN, action)
+                or any(
+                    slugify(other.title) == action
+                    for other_entry in self.hass.config_entries.async_entries(DOMAIN)
+                    for other in other_entry.subentries.values()
+                )
             ):
                 errors[CONF_NAME] = "action_exists"
             else:
                 errors = _validate(dict(entry.data), user_input)
+            if not errors and subentry is not None:
+                return self.async_update_and_abort(
+                    entry, subentry, title=name, data=user_input
+                )
             if not errors:
                 return self.async_create_entry(title=name, data=user_input)
             user_input[CONF_NAME] = name
 
+        suggested = user_input
+        if suggested is None and subentry is not None:
+            suggested = {CONF_NAME: subentry.title, **subentry.data}
         return self.async_show_form(
-            step_id="user",
+            step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(
-                self.USER_SCHEMA, user_input or {}
+                self.USER_SCHEMA, suggested or {}
             ),
             description_placeholders=placeholders,
             errors=errors,

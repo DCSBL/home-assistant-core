@@ -8,6 +8,48 @@
       "invalid_url": "Enter an address that starts with http:// or https://, without a username or password, query (?) or fragment (#). Use the authentication section for credentials."
     },
     "step": {
+      "reconfigure": {
+        "data": {
+          "url": "[%key:common::config_flow::data::url%]"
+        },
+        "data_description": {
+          "url": "[%key:component::rest_command::config::step::user::data_description::url%]"
+        },
+        "description": "Change the server address, authentication or settings that all commands of this server use.",
+        "sections": {
+          "additional": {
+            "data": {
+              "headers": "[%key:component::rest_command::config::step::user::sections::additional::data::headers%]",
+              "insecure_cipher": "[%key:component::rest_command::config::step::user::sections::additional::data::insecure_cipher%]",
+              "timeout": "[%key:component::rest_command::config::step::user::sections::additional::data::timeout%]",
+              "verify_ssl": "[%key:common::config_flow::data::verify_ssl%]"
+            },
+            "data_description": {
+              "headers": "[%key:component::rest_command::config::step::user::sections::additional::data_description::headers%]",
+              "insecure_cipher": "[%key:component::rest_command::config::step::user::sections::additional::data_description::insecure_cipher%]",
+              "timeout": "[%key:component::rest_command::config::step::user::sections::additional::data_description::timeout%]",
+              "verify_ssl": "[%key:component::rest_command::config::step::user::sections::additional::data_description::verify_ssl%]"
+            },
+            "description": "[%key:component::rest_command::config::step::user::sections::additional::description%]",
+            "name": "[%key:component::rest_command::config::step::user::sections::additional::name%]"
+          },
+          "auth": {
+            "data": {
+              "authentication": "[%key:component::rest_command::config::step::user::sections::auth::data::authentication%]",
+              "password": "[%key:common::config_flow::data::password%]",
+              "username": "[%key:common::config_flow::data::username%]"
+            },
+            "data_description": {
+              "authentication": "[%key:component::rest_command::config::step::user::sections::auth::data_description::authentication%]",
+              "password": "[%key:component::rest_command::config::step::user::sections::auth::data_description::password%]",
+              "username": "[%key:component::rest_command::config::step::user::sections::auth::data_description::username%]"
+            },
+            "description": "[%key:component::rest_command::config::step::user::sections::auth::description%]",
+            "name": "[%key:component::rest_command::config::step::user::sections::auth::name%]"
+          }
+        },
+        "title": "Change server"
+      },
       "user": {
         "data": {
           "url": "[%key:common::config_flow::data::url%]"
@@ -64,6 +106,38 @@
         "user": "Add command"
       },
       "step": {
+        "reconfigure": {
+          "data": {
+            "method": "[%key:component::rest_command::config_subentries::command::step::user::data::method%]",
+            "name": "[%key:common::config_flow::data::name%]",
+            "path": "[%key:common::config_flow::data::path%]",
+            "payload": "[%key:component::rest_command::config_subentries::command::step::user::data::payload%]"
+          },
+          "data_description": {
+            "method": "[%key:component::rest_command::config_subentries::command::step::user::data_description::method%]",
+            "name": "[%key:component::rest_command::config_subentries::command::step::user::data_description::name%]",
+            "path": "[%key:component::rest_command::config_subentries::command::step::user::data_description::path%]",
+            "payload": "[%key:component::rest_command::config_subentries::command::step::user::data_description::payload%]"
+          },
+          "description": "Change the request sent by {action}. Renaming the command also renames the action, so update your automations when you do.",
+          "sections": {
+            "additional": {
+              "data": {
+                "content_type": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::data::content_type%]",
+                "headers": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::data::headers%]",
+                "skip_url_encoding": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::data::skip_url_encoding%]"
+              },
+              "data_description": {
+                "content_type": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::data_description::content_type%]",
+                "headers": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::data_description::headers%]",
+                "skip_url_encoding": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::data_description::skip_url_encoding%]"
+              },
+              "description": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::description%]",
+              "name": "[%key:component::rest_command::config_subentries::command::step::user::sections::additional::name%]"
+            }
+          },
+          "title": "Change command"
+        },
         "user": {
           "data": {
             "method": "Method",
@@ -116,7 +190,7 @@
       "title": "RESTful Command action {action} is already in use"
     },
     "invalid_command": {
-      "description": "The command {action} of {server} could not be set up, so the action is not available: {error}.\n\nThis can happen when its saved settings are no longer valid after an update. Go to Settings > Devices & services > RESTful Command, delete the command and add it again.",
+      "description": "The command {action} of {server} could not be set up, so the action is not available: {error}.\n\nThis can happen when its saved settings are no longer valid after an update. Go to Settings > Devices & services > RESTful Command, open the command and correct it.",
       "title": "RESTful Command {action} is not valid"
     }
   },

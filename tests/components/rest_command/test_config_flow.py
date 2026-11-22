@@ -1,12 +1,13 @@
 """Tests for the REST command config flow."""
 
+from types import MappingProxyType
 from typing import Any
 
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant.components.rest_command.const import DOMAIN, SUBENTRY_TYPE_COMMAND
-from homeassistant.config_entries import SOURCE_USER, ConfigSubentryData
+from homeassistant.config_entries import SOURCE_USER, ConfigSubentry, ConfigSubentryData
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.setup import async_setup_component
@@ -240,3 +241,91 @@ async def test_action_from_yaml_exists(
         result["flow_id"], NEW_COMMAND_INPUT
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_reconfigure_server(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Test changing the server, and the errors on the way."""
+    MockConfigEntry(
+        domain=DOMAIN, title="other", data={"url": "https://other"}
+    ).add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"url": "ftp://example.com", "auth": {}, "additional": {}}
+    )
+    assert result["errors"] == {"url": "invalid_url"}
+
+    # Keeping the same address is not a duplicate
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**SERVER_INPUT, "url": "https://example.org/"}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.title == "https://example.org"
+    assert entry.data == {**SERVER_DATA, "url": "https://example.org"}
+    assert hass.services.has_service(DOMAIN, "open_door")
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"url": "https://example.org", "auth": {}, "additional": {}}
+    )
+    assert result["reason"] == "reconfigure_successful"
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"url": "https://other", "auth": {}, "additional": {}}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_reconfigure_command(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Test changing and renaming a command."""
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data=MappingProxyType({"method": "get"}),
+            subentry_type=SUBENTRY_TYPE_COMMAND,
+            title="Close door",
+            unique_id=None,
+        ),
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    subentry_id = next(
+        subentry_id
+        for subentry_id, subentry in entry.subentries.items()
+        if subentry.title == "Open door"
+    )
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {**COMMAND_INPUT, "name": "Close door"}
+    )
+    assert result["errors"] == {"name": "action_exists"}
+
+    # Keeping its own name is fine
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {**COMMAND_INPUT, "method": "put"}
+    )
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.subentries[subentry_id].data["method"] == "put"
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {**COMMAND_INPUT, "name": "Front door"}
+    )
+    await hass.async_block_till_done()
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.subentries[subentry_id].title == "Front door"
+    assert hass.services.has_service(DOMAIN, "front_door")
+    assert not hass.services.has_service(DOMAIN, "open_door")
